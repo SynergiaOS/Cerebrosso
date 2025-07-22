@@ -1,0 +1,68 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Traefik Configuration
+
+# 🌐 Global Configuration
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# 📊 API and Dashboard
+api:
+  dashboard: true
+  insecure: true  # Only for development
+
+# 🚪 Entry Points
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+  traefik:
+    address: ":8080"
+
+# 🔍 Providers
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "cerberus-net"
+  file:
+    filename: "/etc/traefik/dynamic.yml"
+    watch: true
+
+# 📜 Certificate Resolvers (for production HTTPS)
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "202778732+SynergiaOS@users.noreply.github.com"
+      storage: "/data/acme.json"
+      httpChallenge:
+        entryPoint: web
+
+# 📊 Metrics
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+
+# 📝 Logging
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  fields:
+    defaultMode: keep
+    names:
+      ClientUsername: drop
+    headers:
+      defaultMode: keep
+      names:
+        User-Agent: redact
+        Authorization: drop
+        Content-Type: keep
+
+# 🔧 Pilot (Traefik Cloud)
+pilot:
+  dashboard: false

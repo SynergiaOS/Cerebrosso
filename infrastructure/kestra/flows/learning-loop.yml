@@ -1,0 +1,229 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Learning Loop Flow
+# Przepływ uczenia się i optymalizacji strategii
+
+id: learning-loop
+namespace: cerberus.learning
+
+description: |
+  Przepływ uczenia się Cerberus Phoenix v2.0:
+  - Analiza wyników transakcji
+  - Aktualizacja kontekstu AI
+  - Optymalizacja strategii
+  - Dostrajanie parametrów
+
+labels:
+  project: cerberus-phoenix
+  version: "2.0"
+  environment: production
+  type: learning
+
+# ⏰ Harmonogram - uruchamianie co 5 minut
+triggers:
+  - id: schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "0 */5 * * * *"  # Co 5 minut
+    timezone: "Europe/Warsaw"
+
+# 📊 Zmienne globalne
+variables:
+  cerebro_api_url: "http://cerebro-bff:8080"
+  ninja_api_url: "http://hft-ninja:8080"
+  qdrant_url: "http://qdrant:6333"
+  learning_window_hours: 24
+
+tasks:
+  # 📊 FAZA 1: Zbieranie Danych o Wydajności
+  - id: collect-performance-data
+    type: io.kestra.plugin.core.http.Request
+    description: "Zbieranie danych o wydajności z ostatnich 24h"
+    uri: "{{ vars.ninja_api_url }}/api/v1/performance/summary"
+    method: GET
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "time_window": "{{ vars.learning_window_hours }}h",
+        "include_failed": true,
+        "include_metrics": true
+      }
+    timeout: PT30S
+
+  # 🧠 FAZA 2: Analiza Wzorców
+  - id: analyze-patterns
+    type: io.kestra.plugin.core.http.Request
+    description: "Analiza wzorców i trendów w danych"
+    uri: "{{ vars.cerebro_api_url }}/api/v1/analyze/patterns"
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "performance_data": {{ outputs.collect-performance-data.body | json }},
+        "analysis_type": "comprehensive",
+        "focus_areas": [
+          "strategy_effectiveness",
+          "timing_optimization",
+          "risk_management",
+          "market_conditions"
+        ]
+      }
+    timeout: PT60S
+
+  # 🎯 FAZA 3: Identyfikacja Obszarów Poprawy
+  - id: identify-improvements
+    type: io.kestra.plugin.core.http.Request
+    description: "Identyfikacja obszarów wymagających poprawy"
+    uri: "{{ vars.cerebro_api_url }}/api/v1/optimize/identify"
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "patterns": {{ outputs.analyze-patterns.body.patterns | json }},
+        "current_strategies": {{ outputs.analyze-patterns.body.strategies | json }},
+        "performance_targets": {
+          "daily_roi": 0.05,
+          "success_rate": 0.85,
+          "max_drawdown": 0.02,
+          "avg_execution_time": 100
+        }
+      }
+    timeout: PT45S
+
+  # 🔧 FAZA 4: Generowanie Optymalizacji
+  - id: generate-optimizations
+    type: io.kestra.core.tasks.flows.If
+    description: "Generowanie optymalizacji jeśli znaleziono obszary poprawy"
+    condition: "{{ outputs.identify-improvements.body.improvements | length > 0 }}"
+    then:
+      - id: create-optimizations
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/optimize/generate"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "improvements": {{ outputs.identify-improvements.body.improvements | json }},
+            "optimization_mode": "conservative",
+            "test_mode": true,
+            "rollback_threshold": 0.1
+          }
+        timeout: PT90S
+
+  # 🧪 FAZA 5: Testowanie Optymalizacji
+  - id: test-optimizations
+    type: io.kestra.core.tasks.flows.If
+    description: "Testowanie wygenerowanych optymalizacji"
+    condition: "{{ outputs.generate-optimizations.create-optimizations.body.optimizations is defined }}"
+    then:
+      - id: run-backtests
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/backtest/run"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "optimizations": {{ outputs.generate-optimizations.create-optimizations.body.optimizations | json }},
+            "test_period": "7d",
+            "test_data_source": "historical",
+            "validation_metrics": [
+              "roi",
+              "sharpe_ratio",
+              "max_drawdown",
+              "win_rate"
+            ]
+          }
+        timeout: PT120S
+
+  # ✅ FAZA 6: Walidacja i Wdrożenie
+  - id: validate-and-deploy
+    type: io.kestra.core.tasks.flows.If
+    description: "Walidacja wyników i wdrożenie jeśli testy są pozytywne"
+    condition: "{{ outputs.test-optimizations.run-backtests.body.validation_passed == true }}"
+    then:
+      - id: deploy-optimizations
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.ninja_api_url }}/api/v1/strategies/update"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "optimizations": {{ outputs.generate-optimizations.create-optimizations.body.optimizations | json }},
+            "deployment_mode": "gradual",
+            "rollback_enabled": true,
+            "monitoring_period": "1h"
+          }
+        timeout: PT60S
+        
+      - id: update-context
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/context/update"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "learning_results": {
+              "patterns": {{ outputs.analyze-patterns.body.patterns | json }},
+              "improvements": {{ outputs.identify-improvements.body.improvements | json }},
+              "optimizations": {{ outputs.generate-optimizations.create-optimizations.body.optimizations | json }},
+              "backtest_results": {{ outputs.test-optimizations.run-backtests.body | json }}
+            },
+            "timestamp": "{{ now() }}",
+            "learning_cycle_id": "{{ execution.id }}"
+          }
+        timeout: PT30S
+
+  # 📊 FAZA 7: Raportowanie
+  - id: generate-learning-report
+    type: io.kestra.plugin.core.http.Request
+    description: "Generowanie raportu z cyklu uczenia się"
+    uri: "{{ vars.cerebro_api_url }}/api/v1/reports/learning"
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "cycle_id": "{{ execution.id }}",
+        "performance_data": {{ outputs.collect-performance-data.body | json }},
+        "analysis_results": {{ outputs.analyze-patterns.body | json }},
+        "improvements_identified": {{ outputs.identify-improvements.body.improvements | length }},
+        "optimizations_deployed": {{ outputs.validate-and-deploy.deploy-optimizations.body.deployed_count | default(0) }},
+        "timestamp": "{{ now() }}"
+      }
+    timeout: PT30S
+
+# 🚨 Error Handling
+errors:
+  - id: handle-learning-errors
+    type: io.kestra.core.tasks.log.Log
+    message: "❌ Błąd w pętli uczenia się: {{ task.id }} - {{ task.exception.message }}"
+    level: ERROR
+
+# 📊 Metryki i Monitoring
+listeners:
+  - conditions:
+      - type: io.kestra.core.models.conditions.types.ExecutionStatusCondition
+        in:
+          - SUCCESS
+    tasks:
+      - id: log-learning-success
+        type: io.kestra.core.tasks.log.Log
+        message: "✅ Cykl uczenia się zakończony pomyślnie. Execution ID: {{ execution.id }}"
+        level: INFO
+        
+  - conditions:
+      - type: io.kestra.core.models.conditions.types.ExecutionStatusCondition
+        in:
+          - FAILED
+    tasks:
+      - id: alert-learning-failure
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/alerts"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "type": "learning_failure",
+            "flow_id": "{{ flow.id }}",
+            "execution_id": "{{ execution.id }}",
+            "error": "{{ task.exception.message }}",
+            "timestamp": "{{ now() }}",
+            "severity": "high"
+          }

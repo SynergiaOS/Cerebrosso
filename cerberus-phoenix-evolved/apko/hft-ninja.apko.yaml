@@ -1,0 +1,46 @@
+# 🥷 HFT Ninja - Secure Apko Image Configuration
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  packages:
+    - ca-certificates-bundle
+    - wolfi-baselayout
+    - curl
+    - glibc-locale-en
+
+entrypoint:
+  command: /usr/local/bin/hft-ninja
+
+# 🔐 Security: Run as non-root
+accounts:
+  groups:
+    - groupname: hft-ninja
+      gid: 65532
+  users:
+    - username: hft-ninja
+      uid: 65532
+      gid: 65532
+      shell: /sbin/nologin
+  run-as: hft-ninja
+
+# 🌍 Environment
+environment:
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "info"
+
+# 📋 Metadata
+annotations:
+  org.opencontainers.image.title: "HFT Ninja"
+  org.opencontainers.image.description: "Ultra-fast Solana transaction execution engine"
+  org.opencontainers.image.version: "0.1.0"
+  org.opencontainers.image.authors: "SynergiaOS"
+  org.opencontainers.image.url: "https://github.com/SynergiaOS/cerberus-phoenix-evolved"
+  org.opencontainers.image.source: "https://github.com/SynergiaOS/cerberus-phoenix-evolved"
+  org.opencontainers.image.licenses: "MIT"
+
+# 🏗️ Build configuration
+archs:
+  - x86_64
+  - aarch64

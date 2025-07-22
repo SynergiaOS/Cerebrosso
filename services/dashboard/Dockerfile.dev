@@ -1,0 +1,27 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Dashboard Development Dockerfile
+
+FROM node:20-alpine as development
+
+# 📦 Install development dependencies
+RUN apk add --no-cache libc6-compat curl
+
+# 📁 Set working directory
+WORKDIR /app
+
+# 👤 Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    chown -R nextjs:nodejs /app
+
+# 👤 Switch to non-root user
+USER nextjs
+
+# 🌐 Expose port
+EXPOSE 3000
+
+# 🔧 Set environment variables
+ENV NODE_ENV development
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# 🚀 Default command for development (will be overridden by docker-compose)
+CMD ["npm", "run", "dev"]

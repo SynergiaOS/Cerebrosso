@@ -1,0 +1,232 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Docker Compose
+# Główny plik orkiestracji całego stosu
+
+version: '3.8'
+
+networks:
+  cerberus-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  # 🗄️ Persistent data
+  qdrant_data:
+  kestra_data:
+  prometheus_data:
+  grafana_data:
+  traefik_data:
+  postgres_data:
+
+services:
+  # 🚪 Traefik - API Gateway & Load Balancer
+  traefik:
+    image: traefik:v3.0
+    container_name: cerberus-traefik
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+      - "8443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/data
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - cerberus-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+
+  # 🧠 Qdrant - Vector Database (AI Memory)
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: cerberus-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    networks:
+      - cerberus-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qdrant.rule=Host(`qdrant.localhost`)"
+      - "traefik.http.services.qdrant.loadbalancer.server.port=6333"
+
+  # ⚙️ Kestra - Workflow Orchestrator
+  kestra:
+    image: kestra/kestra:latest
+    container_name: cerberus-kestra
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    volumes:
+      - kestra_data:/app/storage
+      - ./kestra/flows:/app/flows
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: kestra
+        kestra:
+          server:
+            basic-auth:
+              enabled: false
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: "/app/storage"
+    depends_on:
+      - postgres
+    networks:
+      - cerberus-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kestra.rule=Host(`kestra.localhost`)"
+      - "traefik.http.services.kestra.loadbalancer.server.port=8080"
+
+  # 🗄️ PostgreSQL - Database for Kestra
+  postgres:
+    image: postgres:15-alpine
+    container_name: cerberus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: kestra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cerberus-net
+
+  # 📊 Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cerberus-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - cerberus-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # 📈 Grafana - Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cerberus-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    networks:
+      - cerberus-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # 🥷 HFT-Ninja - Core Execution Engine
+  hft-ninja:
+    build:
+      context: ../services/hft-ninja
+      dockerfile: Dockerfile
+    container_name: cerberus-hft-ninja
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      RUST_LOG: info
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      JITO_BLOCK_ENGINE_URL: ${JITO_BLOCK_ENGINE_URL:-https://mainnet.block-engine.jito.wtf}
+      CEREBRO_BFF_URL: http://cerebro-bff:8080
+    volumes:
+      - ./secrets:/app/secrets:ro
+    networks:
+      - cerberus-net
+    depends_on:
+      - cerebro-bff
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hft-ninja.rule=Host(`ninja.localhost`)"
+      - "traefik.http.services.hft-ninja.loadbalancer.server.port=8080"
+
+  # 🧠 Cerebro-BFF - AI Logic & API Backend
+  cerebro-bff:
+    build:
+      context: ../services/cerebro-bff
+      dockerfile: Dockerfile
+    container_name: cerberus-cerebro-bff
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      RUST_LOG: info
+      QDRANT_URL: http://qdrant:6333
+      FINLLAMA_API_URL: ${FINLLAMA_API_URL:-http://localhost:11434}
+      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-http://localhost:11435}
+    volumes:
+      - ./secrets:/app/secrets:ro
+    networks:
+      - cerberus-net
+    depends_on:
+      - qdrant
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cerebro-bff.rule=Host(`cerebro.localhost`)"
+      - "traefik.http.services.cerebro-bff.loadbalancer.server.port=8080"
+
+  # 🖥️ Dashboard - React Frontend
+  dashboard:
+    build:
+      context: ../services/dashboard
+      dockerfile: Dockerfile
+    container_name: cerberus-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://cerebro-bff:8080
+      NEXT_PUBLIC_NINJA_URL: http://hft-ninja:8080
+    networks:
+      - cerberus-net
+    depends_on:
+      - cerebro-bff
+      - hft-ninja
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=3000"

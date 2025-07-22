@@ -1,0 +1,36 @@
+[package]
+name = "cerebro-bff"
+version = "0.1.0"
+edition = "2021"
+authors = ["SynergiaOS <202778732+SynergiaOS@users.noreply.github.com>"]
+description = "Cerebro BFF - AI-powered trading decision API"
+license = "MIT"
+
+[dependencies]
+# 🚀 Web Framework
+axum = { version = "0.7", features = ["json"] }
+tokio = { version = "1.35", features = ["full"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# 🌐 HTTP Client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# 📊 Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# 🔍 Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 🛠️ Utilities
+thiserror = "1.0"
+anyhow = "1.0"
+
+# 🏠 Internal (temporarily disabled for MVP)
+# cerberus-core-types = { path = "./crates/core-types" }
+
+# 🔍 Vector Database (disabled for MVP)
+# qdrant-client = "1.7"

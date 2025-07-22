@@ -1,0 +1,32 @@
+[package]
+name = "blackbox-logger"
+version = "0.1.0"
+edition = "2021"
+authors = ["SynergiaOS <202778732+SynergiaOS@users.noreply.github.com>"]
+description = "High-performance black box logger for Cerberus trading system"
+license = "MIT"
+
+[dependencies]
+# 🚀 Async Runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+
+# 📊 Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 🔍 Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 🛠️ Utilities
+thiserror = "1.0"
+anyhow = "1.0"
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# 📁 File I/O
+tokio-fs = "0.1"
+
+# 🏠 Internal
+cerberus-core-types = { path = "../core-types" }

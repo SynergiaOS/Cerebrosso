@@ -1,0 +1,176 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Traefik Dynamic Configuration
+
+# 🔒 TLS Configuration
+tls:
+  options:
+    default:
+      minVersion: "VersionTLS12"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+
+# 🌐 HTTP Configuration
+http:
+  # 🔄 Middlewares
+  middlewares:
+    # Security Headers
+    security-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - OPTIONS
+          - PUT
+          - POST
+          - DELETE
+        accessControlAllowOriginList:
+          - "http://localhost:3000"
+          - "http://dashboard.localhost"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        referrerPolicy: "same-origin"
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+
+    # Rate Limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+
+    # CORS
+    cors:
+      headers:
+        accessControlAllowCredentials: true
+        accessControlAllowHeaders:
+          - "Content-Type"
+          - "Authorization"
+          - "X-Requested-With"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowOriginList:
+          - "http://localhost:3000"
+          - "http://dashboard.localhost"
+        accessControlMaxAge: 86400
+
+    # Compression
+    compression:
+      compress: {}
+
+    # Strip Prefix
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - "/api"
+
+  # 🛣️ Routers
+  routers:
+    # Dashboard Router
+    dashboard:
+      rule: "Host(`dashboard.localhost`) || Host(`localhost`)"
+      service: dashboard
+      middlewares:
+        - security-headers
+        - cors
+        - compression
+
+    # Cerebro BFF Router
+    cerebro-api:
+      rule: "Host(`cerebro.localhost`) || PathPrefix(`/api/cerebro`)"
+      service: cerebro-bff
+      middlewares:
+        - security-headers
+        - cors
+        - rate-limit
+        - strip-api-prefix
+
+    # HFT Ninja Router
+    ninja-api:
+      rule: "Host(`ninja.localhost`) || PathPrefix(`/api/ninja`)"
+      service: hft-ninja
+      middlewares:
+        - security-headers
+        - cors
+        - rate-limit
+        - strip-api-prefix
+
+    # Monitoring Routes
+    prometheus:
+      rule: "Host(`prometheus.localhost`)"
+      service: prometheus
+      middlewares:
+        - security-headers
+
+    grafana:
+      rule: "Host(`grafana.localhost`)"
+      service: grafana
+      middlewares:
+        - security-headers
+
+    qdrant:
+      rule: "Host(`qdrant.localhost`)"
+      service: qdrant
+      middlewares:
+        - security-headers
+        - rate-limit
+
+    kestra:
+      rule: "Host(`kestra.localhost`)"
+      service: kestra
+      middlewares:
+        - security-headers
+
+  # 🎯 Services
+  services:
+    dashboard:
+      loadBalancer:
+        servers:
+          - url: "http://dashboard:3000"
+        healthCheck:
+          path: "/api/health"
+          interval: "30s"
+          timeout: "10s"
+
+    cerebro-bff:
+      loadBalancer:
+        servers:
+          - url: "http://cerebro-bff:8080"
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "10s"
+
+    hft-ninja:
+      loadBalancer:
+        servers:
+          - url: "http://hft-ninja:8080"
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "10s"
+
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+
+    qdrant:
+      loadBalancer:
+        servers:
+          - url: "http://qdrant:6333"
+
+    kestra:
+      loadBalancer:
+        servers:
+          - url: "http://kestra:8080"

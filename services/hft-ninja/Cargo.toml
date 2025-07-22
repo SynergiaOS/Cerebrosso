@@ -1,0 +1,116 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - HFT-Ninja
+# Rdzeń egzekucyjny dla transakcji Solana z obsługą Jito Bundles
+
+[package]
+name = "hft-ninja"
+version = "2.0.0"
+edition = "2021"
+authors = ["SynergiaOS <202778732+SynergiaOS@users.noreply.github.com>"]
+description = "Ultrawydajny egzekutor transakcji Solana z obsługą MEV i Jito Bundles"
+license = "MIT"
+repository = "https://github.com/SynergiaOS/Cerebros"
+keywords = ["solana", "hft", "mev", "jito", "trading"]
+categories = ["finance", "cryptocurrency", "web-programming"]
+
+[dependencies]
+# 🚀 Async Runtime & Web Framework
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["json", "tower-log"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+hyper = { version = "1.0", features = ["full"] }
+
+# 🌐 HTTP Client & Serialization
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+rand = "0.8"
+
+# 🔐 Solana & Blockchain
+solana-client = "1.17"
+solana-sdk = "1.17"
+solana-program = "1.17"
+solana-transaction-status = "1.17"
+anchor-client = "0.29"
+anchor-lang = "0.29"
+
+# 💰 SPL Token Support
+spl-token = "4.0"
+spl-associated-token-account = "2.2"
+
+# 🚀 Jito Integration
+# jito-protos = { version = "0.1", optional = true }
+tonic = { version = "0.10", optional = true }
+
+# 📊 Metrics & Monitoring
+prometheus = { version = "0.13", optional = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optional = true }
+tracing-opentelemetry = { version = "0.22", optional = true }
+opentelemetry = "0.21"
+opentelemetry-jaeger = "0.20"
+
+# ⚡ Performance & Utilities
+rayon = "1.8"
+dashmap = "5.5"
+once_cell = "1.19"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1.33", features = ["serde"] }
+
+# 🔧 Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# 🧪 Development & Testing
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+
+# 📊 Benchmarks
+# [[bench]]
+# name = "execution_benchmarks"
+# harness = false
+
+# [[bench]]
+# name = "strategy_benchmarks"
+# harness = false
+
+# 🎯 Binary Targets
+[[bin]]
+name = "hft-ninja"
+path = "src/main.rs"
+
+# 🔧 Build Configuration
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+
+# 🧪 Test Configuration
+[profile.test]
+opt-level = 1
+debug = true
+
+# 📦 Features
+[features]
+default = ["metrics", "tracing"]
+jito = ["tonic"]
+metrics = ["prometheus", "tracing-opentelemetry"]
+tracing = ["tracing-subscriber"]
+
+# 📋 Metadata
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

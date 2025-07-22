@@ -1,0 +1,192 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Main Trading Flow
+# Główny przepływ orkiestrujący cały cykl tradingowy
+
+id: main-trading-flow
+namespace: cerberus.trading
+
+description: |
+  Główny przepływ Cerberus Phoenix v2.0 orkiestrujący:
+  - Zbieranie danych z zewnętrznych źródeł
+  - Kontekstualizację przez AI
+  - Wykrywanie sygnałów tradingowych
+  - Egzekucję transakcji
+  - Uczenie się z wyników
+
+labels:
+  project: cerberus-phoenix
+  version: "2.0"
+  environment: production
+
+# ⏰ Harmonogram - uruchamianie co 30 sekund
+triggers:
+  - id: schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "*/30 * * * * *"  # Co 30 sekund
+    timezone: "Europe/Warsaw"
+
+# 📊 Zmienne globalne
+variables:
+  solana_rpc_url: "{{ secret('SOLANA_RPC_URL') }}"
+  cerebro_api_url: "http://cerebro-bff:8080"
+  ninja_api_url: "http://hft-ninja:8080"
+  qdrant_url: "http://qdrant:6333"
+
+tasks:
+  # 🔍 FAZA 1: Zbieranie Danych
+  - id: collect-market-data
+    type: io.kestra.core.tasks.flows.Parallel
+    description: "Równoległe zbieranie danych z różnych źródeł"
+    tasks:
+      # 📈 Dane z Oumi
+      - id: fetch-oumi-data
+        type: io.kestra.plugin.core.http.Request
+        uri: "https://api.oumi.com/v1/pools"
+        method: GET
+        headers:
+          User-Agent: "Cerberus-Phoenix/2.0"
+        timeout: PT10S
+        
+      # 🌊 Dane z Jupiter
+      - id: fetch-jupiter-data
+        type: io.kestra.plugin.core.http.Request
+        uri: "https://quote-api.jup.ag/v6/quote"
+        method: GET
+        headers:
+          User-Agent: "Cerberus-Phoenix/2.0"
+        timeout: PT10S
+        
+      # 📊 Dane z Birdeye
+      - id: fetch-birdeye-data
+        type: io.kestra.plugin.core.http.Request
+        uri: "https://public-api.birdeye.so/defi/tokenlist"
+        method: GET
+        headers:
+          User-Agent: "Cerberus-Phoenix/2.0"
+          X-API-KEY: "{{ secret('BIRDEYE_API_KEY') }}"
+        timeout: PT10S
+
+  # 🧠 FAZA 2: Kontekstualizacja AI
+  - id: contextualize-data
+    type: io.kestra.plugin.core.http.Request
+    description: "Wysłanie danych do Cerebro-BFF w celu kontekstualizacji"
+    uri: "{{ vars.cerebro_api_url }}/api/v1/contextualize"
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "oumi_data": {{ outputs.collect-market-data.fetch-oumi-data.body | json }},
+        "jupiter_data": {{ outputs.collect-market-data.fetch-jupiter-data.body | json }},
+        "birdeye_data": {{ outputs.collect-market-data.fetch-birdeye-data.body | json }},
+        "timestamp": "{{ now() }}"
+      }
+    timeout: PT30S
+
+  # 🎯 FAZA 3: Wykrywanie Sygnałów
+  - id: detect-signals
+    type: io.kestra.plugin.core.http.Request
+    description: "Wykrywanie sygnałów tradingowych przez HFT-Ninja"
+    uri: "{{ vars.ninja_api_url }}/api/v1/signals/detect"
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "context_id": "{{ outputs.contextualize-data.body.context_id }}",
+        "strategies": ["sandwich", "arbitrage", "piranha_surf"],
+        "risk_level": "medium"
+      }
+    timeout: PT15S
+
+  # 🤖 FAZA 4: Decyzja AI
+  - id: ai-decision
+    type: io.kestra.core.tasks.flows.If
+    description: "Podejmowanie decyzji przez AI jeśli wykryto sygnały"
+    condition: "{{ outputs.detect-signals.body.signals | length > 0 }}"
+    then:
+      - id: get-ai-decision
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/decide"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "signals": {{ outputs.detect-signals.body.signals | json }},
+            "context_id": "{{ outputs.contextualize-data.body.context_id }}",
+            "risk_tolerance": 0.02,
+            "max_position_size": 1.0
+          }
+        timeout: PT20S
+
+  # ⚡ FAZA 5: Egzekucja Transakcji
+  - id: execute-trades
+    type: io.kestra.core.tasks.flows.If
+    description: "Egzekucja transakcji jeśli AI dała zielone światło"
+    condition: "{{ outputs.ai-decision.get-ai-decision.body.action == 'execute' }}"
+    then:
+      - id: execute-transaction
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.ninja_api_url }}/api/v1/execute"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "decision": {{ outputs.ai-decision.get-ai-decision.body | json }},
+            "execution_mode": "jito_bundle",
+            "priority_fee": "auto",
+            "slippage_tolerance": 0.005
+          }
+        timeout: PT60S
+
+  # 📊 FAZA 6: Monitoring i Feedback
+  - id: monitor-execution
+    type: io.kestra.core.tasks.flows.If
+    description: "Monitorowanie wykonania i zbieranie feedbacku"
+    condition: "{{ outputs.execute-trades.execute-transaction.body.transaction_id is defined }}"
+    then:
+      - id: track-transaction
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.ninja_api_url }}/api/v1/track/{{ outputs.execute-trades.execute-transaction.body.transaction_id }}"
+        method: GET
+        timeout: PT30S
+        
+      - id: send-feedback
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/feedback"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "context_id": "{{ outputs.contextualize-data.body.context_id }}",
+            "decision_id": "{{ outputs.ai-decision.get-ai-decision.body.decision_id }}",
+            "transaction_result": {{ outputs.monitor-execution.track-transaction.body | json }},
+            "timestamp": "{{ now() }}"
+          }
+        timeout: PT15S
+
+# 🚨 Error Handling
+errors:
+  - id: handle-errors
+    type: io.kestra.core.tasks.log.Log
+    message: "❌ Błąd w głównym przepływie: {{ task.id }} - {{ task.exception.message }}"
+    level: ERROR
+
+# 📊 Metryki i Alerty
+listeners:
+  - conditions:
+      - type: io.kestra.core.models.conditions.types.ExecutionStatusCondition
+        in:
+          - FAILED
+          - WARNING
+    tasks:
+      - id: alert-on-failure
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.cerebro_api_url }}/api/v1/alerts"
+        method: POST
+        contentType: application/json
+        body: |
+          {
+            "type": "execution_failure",
+            "flow_id": "{{ flow.id }}",
+            "execution_id": "{{ execution.id }}",
+            "error": "{{ task.exception.message }}",
+            "timestamp": "{{ now() }}"
+          }

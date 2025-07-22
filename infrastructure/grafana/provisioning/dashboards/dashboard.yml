@@ -1,0 +1,14 @@
+# 🐺 Projekt Cerberus Phoenix v2.0 - Grafana Dashboard Provisioning
+
+apiVersion: 1
+
+providers:
+  - name: 'cerberus-dashboards'
+    orgId: 1
+    folder: 'Cerberus Phoenix'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

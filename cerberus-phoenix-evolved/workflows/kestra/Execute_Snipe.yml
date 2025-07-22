@@ -1,0 +1,198 @@
+# 🎯 Cerberus Phoenix Evolved - Snipe Execution Workflow
+id: execute_snipe
+namespace: cerberus.trading
+
+description: |
+  Automated snipe execution workflow with AI decision making and risk management.
+  Triggers on new token listings and high-confidence signals.
+
+inputs:
+  - id: signal_data
+    type: JSON
+    description: Trading signal data from external sources
+  - id: risk_level
+    type: STRING
+    description: Risk level (low, medium, high)
+    defaults: medium
+  - id: max_amount_sol
+    type: FLOAT
+    description: Maximum amount in SOL to trade
+    defaults: 0.1
+
+variables:
+  cerebro_url: "http://cerebro-bff:3000"
+  hft_ninja_url: "http://hft-ninja:8080"
+  confidence_threshold: 0.7
+
+tasks:
+  # 🔍 Validate Signal
+  - id: validate_signal
+    type: io.kestra.core.tasks.scripts.Python
+    description: Validate incoming signal data
+    script: |
+      import json
+      import sys
+      
+      signal = json.loads('{{ inputs.signal_data }}')
+      
+      # Basic validation
+      required_fields = ['token', 'pool_address', 'confidence', 'signal_type']
+      for field in required_fields:
+          if field not in signal:
+              print(f"Missing required field: {field}")
+              sys.exit(1)
+      
+      # Confidence check
+      if signal['confidence'] < {{ vars.confidence_threshold }}:
+          print(f"Signal confidence {signal['confidence']} below threshold")
+          sys.exit(1)
+      
+      print("✅ Signal validation passed")
+      print(json.dumps(signal, indent=2))
+
+  # 🧠 AI Analysis
+  - id: ai_analysis
+    type: io.kestra.plugin.core.http.Request
+    description: Send signal to Cerebro for AI analysis
+    uri: "{{ vars.cerebro_url }}/analyze/signal"
+    method: POST
+    contentType: application/json
+    body: "{{ inputs.signal_data }}"
+    options:
+      readTimeout: PT30S
+      connectTimeout: PT10S
+
+  # 🎯 Decision Validation
+  - id: validate_decision
+    type: io.kestra.core.tasks.scripts.Python
+    description: Validate AI decision before execution
+    script: |
+      import json
+      
+      response = {{ outputs.ai_analysis.body }}
+      decision = json.loads(response) if isinstance(response, str) else response
+      
+      print(f"🧠 AI Decision: {decision.get('action', 'unknown')}")
+      print(f"🎯 Confidence: {decision.get('confidence', 0)}")
+      
+      # Check if decision is to proceed
+      action = decision.get('action', {})
+      if not isinstance(action, dict) or action.get('Snipe') is None:
+          print("❌ Decision is not to snipe, stopping workflow")
+          exit(0)
+      
+      # Validate amount
+      snipe_data = action['Snipe']
+      amount = snipe_data.get('amount_sol', 0)
+      max_amount = float('{{ inputs.max_amount_sol }}')
+      
+      if amount > max_amount:
+          print(f"⚠️ Requested amount {amount} exceeds max {max_amount}")
+          snipe_data['amount_sol'] = max_amount
+          decision['action']['Snipe'] = snipe_data
+      
+      print("✅ Decision validation passed")
+      print(json.dumps(decision, indent=2))
+
+  # ⚡ Execute Trade
+  - id: execute_trade
+    type: io.kestra.plugin.core.http.Request
+    description: Send decision to HFT Ninja for execution
+    uri: "{{ vars.hft_ninja_url }}/execute"
+    method: POST
+    contentType: application/json
+    body: "{{ outputs.ai_analysis.body }}"
+    options:
+      readTimeout: PT60S
+      connectTimeout: PT10S
+
+  # 📊 Log Results
+  - id: log_execution
+    type: io.kestra.core.tasks.scripts.Python
+    description: Log execution results and update metrics
+    script: |
+      import json
+      from datetime import datetime
+      
+      execution_result = {{ outputs.execute_trade.body }}
+      result = json.loads(execution_result) if isinstance(execution_result, str) else execution_result
+      
+      print("📊 EXECUTION SUMMARY")
+      print("=" * 50)
+      print(f"🆔 Execution ID: {result.get('id', 'unknown')}")
+      print(f"✅ Success: {result.get('success', False)}")
+      print(f"⏱️ Latency: {result.get('latency_ms', 0)}ms")
+      print(f"💰 Profit: {result.get('profit_sol', 0)} SOL")
+      print(f"🔗 TX Hash: {result.get('tx_hash', 'N/A')}")
+      
+      if result.get('error'):
+          print(f"❌ Error: {result['error']}")
+      
+      # Store for downstream tasks
+      with open('/tmp/execution_result.json', 'w') as f:
+          json.dump(result, f, indent=2)
+
+  # 📈 Update Performance Metrics
+  - id: update_metrics
+    type: io.kestra.core.tasks.scripts.Python
+    description: Update performance tracking
+    script: |
+      import json
+      
+      with open('/tmp/execution_result.json', 'r') as f:
+          result = json.load(f)
+      
+      # TODO: Send to metrics collection system
+      # For now, just log the metrics
+      
+      if result.get('success'):
+          print("📈 Updating success metrics")
+          print(f"   Profit: +{result.get('profit_sol', 0)} SOL")
+          print(f"   Latency: {result.get('latency_ms', 0)}ms")
+      else:
+          print("📉 Updating failure metrics")
+          print(f"   Error: {result.get('error', 'Unknown')}")
+      
+      print("✅ Metrics updated")
+
+# 🚨 Error Handling
+errors:
+  - id: handle_validation_error
+    type: io.kestra.core.tasks.scripts.Python
+    script: |
+      print("❌ Workflow failed during validation phase")
+      print("🔄 No trades executed, system safe")
+
+  - id: handle_execution_error
+    type: io.kestra.core.tasks.scripts.Python
+    script: |
+      print("❌ Workflow failed during execution phase")
+      print("🚨 Check HFT Ninja logs for details")
+      print("📊 Logging failure for analysis")
+
+# 🔔 Triggers
+triggers:
+  # Manual trigger for testing
+  - id: manual_trigger
+    type: io.kestra.core.models.triggers.types.Manual
+
+  # Webhook trigger for external signals
+  - id: signal_webhook
+    type: io.kestra.core.models.triggers.types.Webhook
+    key: "cerberus-signal-webhook-key"
+
+  # Scheduled trigger for market scanning
+  - id: market_scan
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "*/30 * * * *"  # Every 30 minutes
+    inputs:
+      signal_data: |
+        {
+          "source": "scheduled_scan",
+          "token": "So11111111111111111111111111111111111111112",
+          "pool_address": "So11111111111111111111111111111111111111112",
+          "confidence": 0.8,
+          "signal_type": "market_scan"
+        }
+      risk_level: "low"
+      max_amount_sol: 0.05
