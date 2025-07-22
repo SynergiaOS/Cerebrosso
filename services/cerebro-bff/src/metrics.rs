@@ -1,8 +1,7 @@
 //! 📊 Metryki i monitoring dla Cerebro-BFF
 
 use axum::{http::StatusCode, response::Response};
-use prometheus::{Encoder, TextEncoder, Counter, Histogram, Gauge, Registry};
-use std::sync::Arc;
+use prometheus::{TextEncoder, Counter, Histogram, HistogramOpts, Gauge, Registry};
 use once_cell::sync::Lazy;
 
 static REGISTRY: Lazy<Registry> = Lazy::new(|| Registry::new());
@@ -14,7 +13,8 @@ static AI_DECISIONS_TOTAL: Lazy<Counter> = Lazy::new(|| {
 });
 
 static CONTEXT_PROCESSING_DURATION: Lazy<Histogram> = Lazy::new(|| {
-    let histogram = Histogram::new("cerebro_context_processing_duration_seconds", "Context processing duration").unwrap();
+    let opts = HistogramOpts::new("cerebro_context_processing_duration_seconds", "Context processing duration");
+    let histogram = Histogram::with_opts(opts).unwrap();
     REGISTRY.register(Box::new(histogram.clone())).unwrap();
     histogram
 });

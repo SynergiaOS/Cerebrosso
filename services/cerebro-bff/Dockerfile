@@ -57,9 +57,13 @@ USER cerebro
 # 🌐 Expose port
 EXPOSE 8080
 
+# 🔧 Environment variables for debugging
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+
 # 🏥 Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 🚀 Run the application
-CMD ["cerebro-bff"]
+# 🚀 Run the application with proper path and logging
+CMD ["sh", "-c", "echo 'Starting Cerebro-BFF...' && /usr/local/bin/cerebro-bff"]

@@ -10,6 +10,9 @@ pub struct Config {
     pub qdrant: QdrantConfig,
     pub ai: AIConfig,
     pub context_engine: ContextEngineConfig,
+    pub helius: HeliusConfig,
+    pub quicknode: QuickNodeConfig,
+    pub piranha: PiranhaConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +43,35 @@ pub struct ContextEngineConfig {
     pub similarity_threshold: f32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeliusConfig {
+    pub api_key: String,
+    pub base_url: String,
+    pub enable_filtering: bool,
+    pub min_confidence: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickNodeConfig {
+    pub rpc_url: String,
+    pub api_key: String,
+    pub jito_url: String,
+    pub enable_jito: bool,
+    pub timeout_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PiranhaConfig {
+    pub max_position_size_sol: f64,
+    pub min_liquidity_score: f64,
+    pub max_rug_pull_score: f64,
+    pub max_slippage: f64,
+    pub use_jito_bundles: bool,
+    pub emergency_exit_threshold: f64,
+    pub profit_target: f64,
+    pub stop_loss: f64,
+}
+
 impl Config {
     pub fn load() -> Result<Self> {
         Ok(Config {
@@ -68,6 +100,40 @@ impl Config {
                 max_context_size: 8192,
                 embedding_model: "text-embedding-ada-002".to_string(),
                 similarity_threshold: 0.8,
+            },
+            helius: HeliusConfig {
+                api_key: env::var("HELIUS_API_KEY")
+                    .expect("HELIUS_API_KEY environment variable is required"),
+                base_url: env::var("HELIUS_BASE_URL")
+                    .unwrap_or_else(|_| "https://api.helius.xyz".to_string()),
+                enable_filtering: true,
+                min_confidence: 0.7,
+            },
+            quicknode: QuickNodeConfig {
+                rpc_url: env::var("QUICKNODE_RPC_URL")
+                    .expect("QUICKNODE_RPC_URL environment variable is required"),
+                api_key: env::var("QUICKNODE_API_KEY")
+                    .expect("QUICKNODE_API_KEY environment variable is required"),
+                jito_url: env::var("JITO_URL")
+                    .unwrap_or_else(|_| "https://mainnet.block-engine.jito.wtf".to_string()),
+                enable_jito: env::var("ENABLE_JITO")
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
+                timeout_ms: 30000,
+            },
+            piranha: PiranhaConfig {
+                max_position_size_sol: env::var("MAX_POSITION_SIZE_SOL")
+                    .unwrap_or_else(|_| "0.1".to_string())
+                    .parse()
+                    .unwrap_or(0.1),
+                min_liquidity_score: 0.5,
+                max_rug_pull_score: 0.3,
+                max_slippage: 0.05,
+                use_jito_bundles: true,
+                emergency_exit_threshold: 0.8,
+                profit_target: 0.15,
+                stop_loss: 0.1,
             },
         })
     }
