@@ -339,3 +339,28 @@ services:
   #     - "traefik.enable=true"
   #     - "traefik.http.routers.scrapy.rule=Host(`scrapy.localhost`)"
   #     - "traefik.http.services.scrapy.loadbalancer.server.port=8080"
+
+  # 🎨 Ultra Dashboard PWA - Next.js Frontend
+  dashboard:
+    build:
+      context: ../services/dashboard
+      dockerfile: Dockerfile
+    image: cerberus/dashboard:latest
+    container_name: cerberus-dashboard
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://cerebro-bff:8080
+      NEXT_PUBLIC_NINJA_URL: http://hft-ninja:8080
+      NEXT_PUBLIC_DASHBOARD_URL: http://localhost:3002
+    networks:
+      - cerberus-net
+    depends_on:
+      - cerebro-bff
+      - hft-ninja
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=3002"

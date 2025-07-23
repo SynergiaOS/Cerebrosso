@@ -1,5 +1,5 @@
-# 🐺 Projekt Cerberus Phoenix v2.0 - Dashboard Dockerfile
-# Multi-stage build dla optymalizacji rozmiaru obrazu
+# 🥷 Cerberus Phoenix v2.0 - Ultra Dashboard PWA Dockerfile
+# Multi-stage build for optimized PWA deployment
 
 # 🏗️ Dependencies stage
 FROM node:20-alpine AS deps
@@ -51,16 +51,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # 👤 Switch to non-root user
 USER nextjs
 
-# 🌐 Expose port
-EXPOSE 3000
+# 🌐 Expose port for Ultra Dashboard PWA
+EXPOSE 3002
 
 # 🔧 Set port environment variable
-ENV PORT 3000
+ENV PORT 3002
 ENV HOSTNAME "0.0.0.0"
 
-# 🏥 Health check
+# 🏥 Health check for Ultra Dashboard PWA
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
+    CMD curl -f http://localhost:3002/ || exit 1
 
 # 🚀 Start the application
 CMD ["node", "server.js"]
