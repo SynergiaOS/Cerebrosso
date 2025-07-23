@@ -12,11 +12,39 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{info, warn, error, debug};
 use reqwest::Client;
 
-/// 🏢 RPC Provider configuration
+/// 🌐 Solana Network Types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SolanaNetwork {
+    MainnetBeta,
+    Devnet,
+    Testnet,
+}
+
+impl SolanaNetwork {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "mainnet-beta" | "mainnet" => Self::MainnetBeta,
+            "devnet" => Self::Devnet,
+            "testnet" => Self::Testnet,
+            _ => Self::MainnetBeta, // Default to mainnet
+        }
+    }
+
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            Self::MainnetBeta => "mainnet-beta",
+            Self::Devnet => "devnet",
+            Self::Testnet => "testnet",
+        }
+    }
+}
+
+/// 🏢 RPC Provider configuration with network support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcProvider {
     pub name: String,
-    pub url: String,
+    pub mainnet_url: String,
+    pub devnet_url: String,
     pub api_key: Option<String>,
     pub monthly_limit: u32,
     pub rpm_limit: Option<u32>,
@@ -24,6 +52,18 @@ pub struct RpcProvider {
     pub has_enhanced_data: bool,
     pub supports_webhooks: bool,
     pub priority: u8, // 1-10, higher = better
+    pub is_free: bool, // TRUE for free providers only
+}
+
+impl RpcProvider {
+    /// Get the appropriate URL for the specified network
+    pub fn get_url_for_network(&self, network: &SolanaNetwork) -> &str {
+        match network {
+            SolanaNetwork::MainnetBeta => &self.mainnet_url,
+            SolanaNetwork::Devnet => &self.devnet_url,
+            SolanaNetwork::Testnet => &self.devnet_url, // Use devnet for testnet
+        }
+    }
 }
 
 /// 📊 Provider usage statistics
