@@ -1,0 +1,284 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🥷 Cerberus Phoenix v2.0 - Oracle Cloud Dashboard",
+    "tags": ["cerberus", "phoenix", "oracle-cloud", "solana", "hft"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "🎯 System Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"cerebro-bff\"}",
+            "legendFormat": "Cerebro-BFF Status"
+          },
+          {
+            "expr": "up{job=\"hft-ninja\"}",
+            "legendFormat": "HFT-Ninja Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "💰 Multi-RPC Cost Optimization",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "api_cost_savings_total",
+            "legendFormat": "Total Savings ($)"
+          },
+          {
+            "expr": "api_requests_saved_total",
+            "legendFormat": "Requests Saved"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {"mode": "continuous-GrYlRd"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "🔄 RPC Provider Health",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "rpc_provider_health",
+            "legendFormat": "{{provider}}"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "provider": "Provider",
+                "Value": "Health Status"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "📊 API Usage by Provider",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "api_requests_total",
+            "legendFormat": "{{provider}}"
+          }
+        ],
+        "options": {
+          "pieType": "donut",
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "table", "placement": "right"}
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 5,
+        "title": "⚡ Response Time by Provider",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg_response_time_ms",
+            "legendFormat": "{{provider}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "💾 Cache Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "cache_hit_rate",
+            "legendFormat": "Hit Rate (%)"
+          },
+          {
+            "expr": "cache_miss_rate",
+            "legendFormat": "Miss Rate (%)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "🎯 Trading Performance",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "trading_success_rate",
+            "legendFormat": "Success Rate"
+          },
+          {
+            "expr": "daily_roi_percentage",
+            "legendFormat": "Daily ROI"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 85}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "🖥️ Oracle Cloud Instance Metrics",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "node_cpu_usage_percent",
+            "legendFormat": "CPU Usage (%)"
+          },
+          {
+            "expr": "node_memory_usage_percent",
+            "legendFormat": "Memory Usage (%)"
+          },
+          {
+            "expr": "node_disk_usage_percent",
+            "legendFormat": "Disk Usage (%)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32}
+      },
+      {
+        "id": 9,
+        "title": "🌊 Real-time Events",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"cerebro-bff\"} |= \"webhook\" or \"stream\"",
+            "legendFormat": ""
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": false,
+          "showCommonLabels": true,
+          "wrapLogMessage": true
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40}
+      },
+      {
+        "id": 10,
+        "title": "💸 Cost Breakdown",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "api_cost_by_provider",
+            "legendFormat": "{{provider}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {"mode": "continuous-GrYlRd"},
+            "min": 0
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48}
+      },
+      {
+        "id": 11,
+        "title": "🔔 Recent Alerts",
+        "type": "alertlist",
+        "options": {
+          "showOptions": "current",
+          "maxItems": 10,
+          "sortOrder": "time_desc"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1,
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(up[5m]) > 0",
+          "iconColor": "blue",
+          "titleFormat": "Service Restart"
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "provider",
+          "type": "query",
+          "query": "label_values(api_requests_total, provider)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    }
+  }
+}

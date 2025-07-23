@@ -21,10 +21,17 @@ Cerberus Phoenix v2.0 is a sophisticated HFT system designed for Solana blockcha
 
 ### 💰 Cost Optimization Results
 
+**API Costs:**
 - **Before**: $93-140/month (single provider, polling)
 - **After**: $13-20/month (multi-provider, webhooks)
 - **Savings**: $80-120/month (85-90% reduction)
 - **Free Tier**: 2.2M+ requests/month across all providers
+
+**Infrastructure Costs:**
+- **Traditional VPS**: $20-50/month
+- **Oracle Cloud Free Tier**: $0/month (FREE forever)
+- **Total Monthly Cost**: $13-20 (vs $113-190 traditional)
+- **Annual Savings**: $1,200-2,040
 
 ## 🚀 Quick Start
 
@@ -58,8 +65,15 @@ VAULT_TOKEN=vault_root_token
 ```
 
 ### 3. Deploy System
+
+**Option A: Local/VPS Deployment**
 ```bash
 ./scripts/deploy-production.sh
+```
+
+**Option B: Oracle Cloud Free Tier (Recommended)**
+```bash
+./scripts/deploy-oracle-cloud.sh
 ```
 
 ### 4. Setup Webhooks
@@ -226,6 +240,7 @@ COST_TRACKING_ENABLED=true
 - [📖 Complete Documentation](./docs/README.md)
 - [📡 API Reference](./docs/API_REFERENCE.md)
 - [🚀 Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)
+- [☁️ Oracle Cloud Deployment](./docs/ORACLE_CLOUD_DEPLOYMENT.md)
 - [⚙️ Configuration Reference](./docs/CONFIGURATION_REFERENCE.md)
 - [📝 Changelog](./docs/CHANGELOG.md)
 - [🏗️ Project Structure](./PROJECT_STRUCTURE.md)

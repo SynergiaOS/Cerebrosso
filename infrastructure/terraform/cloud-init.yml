@@ -20,6 +20,13 @@ packages:
   - ca-certificates
   - gnupg
   - lsb-release
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+  - ufw
+  - fail2ban
+  - python3-pip
+  - python3-venv
 
 # 🐳 Docker configuration
 groups:
