@@ -56,9 +56,18 @@ USER hft-ninja
 # 🌐 Expose port
 EXPOSE 8080
 
+# 📦 Install curl for health checks
+USER root
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+USER hft-ninja
+
+# 🔧 Environment variables for debugging
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+
 # 🏥 Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 🚀 Run the application
-CMD ["/usr/local/bin/hft-ninja"]
+# 🚀 Run the application with logging
+CMD ["sh", "-c", "echo 'Starting HFT-Ninja...' && /usr/local/bin/hft-ninja"]

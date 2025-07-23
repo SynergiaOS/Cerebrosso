@@ -228,6 +228,57 @@ resource "oci_core_instance" "cerberus_instance" {
   }
 }
 
+# 🔐 Vault Secret for Solana Keypair
+resource "oci_vault_secret" "cerberus_solana_keypair" {
+  compartment_id = var.compartment_ocid
+  secret_name    = "cerberus-solana-keypair"
+  vault_id       = oci_kms_vault.cerberus_vault.id
+  key_id         = oci_kms_key.cerberus_key.id
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(jsonencode({
+      private_key = "PLACEHOLDER_PRIVATE_KEY"
+      public_key  = "PLACEHOLDER_PUBLIC_KEY"
+    }))
+  }
+
+  freeform_tags = {
+    "Project" = "Cerberus-Phoenix"
+    "Environment" = "production"
+    "Component" = "solana-keypair"
+  }
+}
+
+# 🔐 KMS Vault for secret management
+resource "oci_kms_vault" "cerberus_vault" {
+  compartment_id   = var.compartment_ocid
+  display_name     = "cerberus-vault"
+  vault_type       = "DEFAULT"
+
+  freeform_tags = {
+    "Project" = "Cerberus-Phoenix"
+    "Environment" = "production"
+  }
+}
+
+# 🔑 KMS Key for encryption
+resource "oci_kms_key" "cerberus_key" {
+  compartment_id      = var.compartment_ocid
+  display_name        = "cerberus-key"
+  management_endpoint = oci_kms_vault.cerberus_vault.management_endpoint
+
+  key_shape {
+    algorithm = "AES"
+    length    = 32
+  }
+
+  freeform_tags = {
+    "Project" = "Cerberus-Phoenix"
+    "Environment" = "production"
+  }
+}
+
 # 📊 Outputs
 output "instance_public_ip" {
   description = "Public IP address of the Cerberus instance"
@@ -242,4 +293,14 @@ output "instance_private_ip" {
 output "ssh_connection" {
   description = "SSH connection command"
   value       = "ssh ubuntu@${oci_core_instance.cerberus_instance.public_ip}"
+}
+
+output "vault_id" {
+  description = "OCI Vault ID for secret management"
+  value       = oci_kms_vault.cerberus_vault.id
+}
+
+output "vault_management_endpoint" {
+  description = "OCI Vault management endpoint"
+  value       = oci_kms_vault.cerberus_vault.management_endpoint
 }

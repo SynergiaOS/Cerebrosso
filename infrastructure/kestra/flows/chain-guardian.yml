@@ -1,0 +1,180 @@
+# 🛡️ Cerberus Phoenix v2.0 - ChainGuardian Monitoring Flow
+# Advanced on-chain monitoring and risk management
+
+id: chain-guardian-monitoring
+namespace: cerberus.security
+
+description: |
+  ChainGuardian - Advanced on-chain monitoring system that:
+  - Monitors global market conditions and risks
+  - Tracks wallet and position health
+  - Detects anomalous on-chain activity
+  - Implements circuit breakers for risk management
+  - Provides real-time alerts for critical events
+
+labels:
+  project: cerberus-phoenix
+  version: "2.0.0"
+  component: chain-guardian
+
+# 🕐 Schedule: Run every 30 seconds for real-time monitoring
+triggers:
+  - id: realtime-schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "*/30 * * * * *"
+
+# 📊 Variables
+variables:
+  ninja_url: "http://hft-ninja:8080"
+  oumi_url: "http://oumi:8080"
+  max_position_risk: 0.15
+  max_daily_loss: 0.05
+  circuit_breaker_threshold: 0.03
+  wallet_health_threshold: 0.8
+
+tasks:
+  # 💰 Check Wallet Health
+  - id: check-wallet-health
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/wallet/health"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+
+  # 📊 Monitor Active Positions
+  - id: monitor-positions
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/positions/monitor"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+
+  # 🌐 Check Global Market Conditions
+  - id: check-market-conditions
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.oumi_url }}/api/v1/market/conditions"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+
+  # 🔍 Detect Anomalies
+  - id: detect-anomalies
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.oumi_url }}/api/v1/anomaly/detect"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "wallet_data": {{ outputs['check-wallet-health'].body }},
+        "position_data": {{ outputs['monitor-positions'].body }},
+        "market_data": {{ outputs['check-market-conditions'].body }},
+        "detection_sensitivity": "high"
+      }
+
+  # 🚨 Risk Assessment
+  - id: assess-risk
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/risk/assess"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "current_positions": {{ outputs['monitor-positions'].body }},
+        "market_conditions": {{ outputs['check-market-conditions'].body }},
+        "anomalies": {{ outputs['detect-anomalies'].body }},
+        "include_stress_test": true
+      }
+
+  # ⚡ Circuit Breaker Check
+  - id: circuit-breaker-check
+    type: io.kestra.core.tasks.flows.If
+    condition: "{{ outputs['assess-risk'].body.total_risk > vars.circuit_breaker_threshold }}"
+    then:
+      - id: activate-circuit-breaker
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.ninja_url }}/api/v1/emergency/circuit-breaker"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "reason": "High risk detected",
+            "risk_level": {{ outputs['assess-risk'].body.total_risk }},
+            "auto_resume": false,
+            "emergency_exit": true
+          }
+
+      - id: emergency-alert
+        type: io.kestra.plugin.core.log.Log
+        message: |
+          🚨 EMERGENCY: Circuit breaker activated!
+          Risk level: {{ outputs['assess-risk'].body.total_risk }}
+          Threshold: {{ vars.circuit_breaker_threshold }}
+          All trading halted for safety.
+        level: ERROR
+
+  # 💸 Daily Loss Check
+  - id: daily-loss-check
+    type: io.kestra.core.tasks.flows.If
+    condition: "{{ outputs['check-wallet-health'].body.daily_pnl_percent < (vars.max_daily_loss * -1) }}"
+    then:
+      - id: daily-loss-limit
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.ninja_url }}/api/v1/trading/pause"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "reason": "Daily loss limit exceeded",
+            "current_loss": {{ outputs['check-wallet-health'].body.daily_pnl_percent }},
+            "limit": {{ vars.max_daily_loss }},
+            "resume_tomorrow": true
+          }
+
+  # 🏥 Wallet Health Alert
+  - id: wallet-health-alert
+    type: io.kestra.core.tasks.flows.If
+    condition: "{{ outputs['check-wallet-health'].body.health_score < vars.wallet_health_threshold }}"
+    then:
+      - id: health-warning
+        type: io.kestra.plugin.core.log.Log
+        message: |
+          ⚠️ Wallet Health Warning
+          Health score: {{ outputs['check-wallet-health'].body.health_score }}
+          Threshold: {{ vars.wallet_health_threshold }}
+          Issues: {{ outputs['check-wallet-health'].body.issues | join(', ') }}
+        level: WARN
+
+  # 📈 Update Monitoring Dashboard
+  - id: update-dashboard
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/dashboard/update"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "timestamp": "{{ execution.startDate }}",
+        "wallet_health": {{ outputs['check-wallet-health'].body }},
+        "positions": {{ outputs['monitor-positions'].body }},
+        "market_conditions": {{ outputs['check-market-conditions'].body }},
+        "risk_assessment": {{ outputs['assess-risk'].body }},
+        "anomalies": {{ outputs['detect-anomalies'].body }}
+      }
+
+# 📊 Outputs
+outputs:
+  - id: total_risk
+    type: io.kestra.core.models.executions.metrics.Timer
+    value: "{{ outputs['assess-risk'].body.total_risk }}"
+  
+  - id: wallet_health
+    type: io.kestra.core.models.executions.metrics.Timer
+    value: "{{ outputs['check-wallet-health'].body.health_score }}"
+  
+  - id: active_positions
+    type: io.kestra.core.models.executions.metrics.Counter
+    value: "{{ outputs['monitor-positions'].body.positions | length }}"

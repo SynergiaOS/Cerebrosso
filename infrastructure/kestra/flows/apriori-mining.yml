@@ -1,0 +1,178 @@
+# 🔍 Cerberus Phoenix v2.0 - Apriori Pattern Mining Flow
+# Discovers trading patterns and generates association rules
+
+id: apriori-pattern-mining
+namespace: cerberus.ai
+
+description: |
+  Advanced Apriori algorithm implementation for discovering trading patterns:
+  - Collects transaction data from recent trading sessions
+  - Applies Apriori algorithm to find frequent itemsets
+  - Generates association rules with confidence and lift metrics
+  - Updates the rule database with new discoveries
+  - Validates rules against recent performance data
+
+labels:
+  project: cerberus-phoenix
+  version: "2.0.0"
+  component: pattern-mining
+
+# 🕐 Schedule: Run every 4 hours
+triggers:
+  - id: schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "0 */4 * * *"
+
+# 📊 Variables
+variables:
+  cerebro_url: "http://cerebro-bff:8080"
+  ninja_url: "http://hft-ninja:8080"
+  min_support: 0.1
+  min_confidence: 0.7
+  min_lift: 1.1
+  lookback_hours: 24
+
+tasks:
+  # 📊 Collect Trading Data
+  - id: collect-trading-data
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/performance/transactions"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+    queryParameters:
+      hours: "{{ vars.lookback_hours }}"
+      include_signals: "true"
+      include_outcomes: "true"
+
+  # 🔄 Transform Data for Mining
+  - id: transform-data
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/mining/prepare-data"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "transactions": {{ outputs['collect-trading-data'].body }},
+        "include_market_conditions": true,
+        "include_timing_data": true,
+        "include_risk_factors": true
+      }
+
+  # 🔍 Run Apriori Algorithm
+  - id: run-apriori-mining
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/mining/apriori"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "transactions": {{ outputs['transform-data'].body.transactions }},
+        "min_support": {{ vars.min_support }},
+        "min_confidence": {{ vars.min_confidence }},
+        "min_lift": {{ vars.min_lift }},
+        "max_itemset_size": 5
+      }
+
+  # 📈 Validate Rules Against Performance
+  - id: validate-rules
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/mining/validate-rules"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "rules": {{ outputs['run-apriori-mining'].body.rules }},
+        "validation_period_hours": {{ vars.lookback_hours }},
+        "performance_threshold": 0.6
+      }
+
+  # 💾 Update Rule Database
+  - id: update-rule-database
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/mining/update-rules"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "validated_rules": {{ outputs['validate-rules'].body.valid_rules }},
+        "replace_existing": false,
+        "mark_outdated": true
+      }
+
+  # 🧮 Calculate Rule Performance Metrics
+  - id: calculate-metrics
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/mining/calculate-metrics"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "rules": {{ outputs['update-rule-database'].body.active_rules }},
+        "include_profit_impact": true,
+        "include_risk_reduction": true
+      }
+
+  # 📋 Generate Mining Report
+  - id: generate-mining-report
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/reports/mining"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "session_id": "{{ execution.id }}",
+        "discovered_rules": {{ outputs['run-apriori-mining'].body.rules | length }},
+        "validated_rules": {{ outputs['validate-rules'].body.valid_rules | length }},
+        "performance_metrics": {{ outputs['calculate-metrics'].body }},
+        "include_recommendations": true
+      }
+
+  # 🎯 Update Strategy Weights
+  - id: update-strategy-weights
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.ninja_url }}/api/v1/strategies/update-weights"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "rule_performance": {{ outputs['calculate-metrics'].body }},
+        "auto_adjust": true,
+        "max_weight_change": 0.1
+      }
+
+  # 🚨 Alert on Significant Discoveries
+  - id: check-significant-discoveries
+    type: io.kestra.core.tasks.flows.If
+    condition: "{{ outputs['validate-rules'].body.valid_rules | length > 5 }}"
+    then:
+      - id: alert-discoveries
+        type: io.kestra.plugin.core.log.Log
+        message: |
+          🎉 Significant Pattern Discovery!
+          - New rules discovered: {{ outputs['run-apriori-mining'].body.rules | length }}
+          - Rules validated: {{ outputs['validate-rules'].body.valid_rules | length }}
+          - Average confidence: {{ outputs['calculate-metrics'].body.avg_confidence }}
+          - Potential profit impact: {{ outputs['calculate-metrics'].body.profit_impact }}%
+        level: INFO
+
+# 📊 Outputs
+outputs:
+  - id: rules_discovered
+    type: io.kestra.core.models.executions.metrics.Counter
+    value: "{{ outputs['run-apriori-mining'].body.rules | length }}"
+  
+  - id: rules_validated
+    type: io.kestra.core.models.executions.metrics.Counter
+    value: "{{ outputs['validate-rules'].body.valid_rules | length }}"
+  
+  - id: avg_confidence
+    type: io.kestra.core.models.executions.metrics.Timer
+    value: "{{ outputs['calculate-metrics'].body.avg_confidence }}"

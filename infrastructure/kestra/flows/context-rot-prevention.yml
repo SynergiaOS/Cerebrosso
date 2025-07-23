@@ -1,0 +1,131 @@
+# 🧹 Cerberus Phoenix v2.0 - Context Rot Prevention Flow
+# Automated cleanup and optimization of AI context memory
+
+id: context-rot-prevention
+namespace: cerberus.ai
+
+description: |
+  Advanced context rot prevention workflow that:
+  - Analyzes context memory usage and performance
+  - Removes stale and low-value contexts
+  - Optimizes TF-IDF weights
+  - Consolidates similar memories
+  - Updates Apriori rules based on recent performance
+
+labels:
+  project: cerberus-phoenix
+  version: "2.0.0"
+  component: ai-context
+
+# 🕐 Schedule: Run every 6 hours
+triggers:
+  - id: schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "0 */6 * * *"
+
+# 📊 Variables
+variables:
+  cerebro_url: "http://cerebro-bff:8080"
+  max_context_age_days: 30
+  min_importance_threshold: 0.1
+  min_access_count: 3
+
+tasks:
+  # 🔍 Analyze Current Context State
+  - id: analyze-context-state
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/context/analyze"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+    
+  # 🧹 Remove Stale Contexts
+  - id: remove-stale-contexts
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/context/cleanup"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "max_age_days": {{ vars.max_context_age_days }},
+        "min_importance_threshold": {{ vars.min_importance_threshold }},
+        "min_access_count": {{ vars.min_access_count }}
+      }
+
+  # 📊 Update TF-IDF Weights
+  - id: update-tfidf-weights
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/context/update-weights"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "recalculate_all": true,
+        "use_recent_performance": true
+      }
+
+  # 🔗 Optimize Apriori Rules
+  - id: optimize-apriori-rules
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/context/optimize-rules"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "min_confidence": 0.7,
+        "min_support": 0.1,
+        "remove_outdated": true
+      }
+
+  # 🧠 Consolidate Similar Memories
+  - id: consolidate-memories
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/context/consolidate"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "similarity_threshold": 0.95,
+        "preserve_performance_data": true
+      }
+
+  # 📈 Generate Cleanup Report
+  - id: generate-report
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.cerebro_url }}/api/v1/reports/context-cleanup"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "include_metrics": true,
+        "include_recommendations": true
+      }
+
+  # 🚨 Send Alert if Issues Found
+  - id: check-and-alert
+    type: io.kestra.core.tasks.flows.If
+    condition: "{{ outputs['analyze-context-state'].body.health_score < 0.8 }}"
+    then:
+      - id: send-alert
+        type: io.kestra.plugin.core.log.Log
+        message: |
+          🚨 Context Health Alert: Health score is {{ outputs['analyze-context-state'].body.health_score }}
+          - Removed contexts: {{ outputs['remove-stale-contexts'].body.removed_count }}
+          - Updated weights: {{ outputs['update-tfidf-weights'].body.updated_count }}
+          - Optimized rules: {{ outputs['optimize-apriori-rules'].body.rules_count }}
+        level: WARN
+
+# 📊 Outputs
+outputs:
+  - id: cleanup_summary
+    type: io.kestra.core.models.executions.metrics.Counter
+    value: "{{ outputs['remove-stale-contexts'].body.removed_count }}"
+  
+  - id: health_score
+    type: io.kestra.core.models.executions.metrics.Timer
+    value: "{{ outputs['analyze-context-state'].body.health_score }}"

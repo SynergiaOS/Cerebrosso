@@ -359,6 +359,42 @@ impl ContextEngine {
         Ok(vec![0.1; 1536])
     }
 
+    /// 🔍 Search for similar contexts (simplified for webhook integration)
+    pub async fn search_similar(&self, query: &str, limit: usize) -> Result<Vec<ContextMemory>> {
+        let memory = self.context_memory.read().await;
+        let contexts: Vec<ContextMemory> = memory.values()
+            .filter(|context| {
+                // Simple text matching for now - can be enhanced with embeddings
+                context.content.contains(query) ||
+                context.tags.iter().any(|tag| tag.contains(query))
+            })
+            .take(limit)
+            .cloned()
+            .collect();
+        Ok(contexts)
+    }
+
+    /// 💾 Store context data (simplified for webhook integration)
+    pub async fn store_context(&self, key: &str, data: &serde_json::Value) -> Result<()> {
+        let context = ContextMemory {
+            id: key.to_string(),
+            content: data.to_string(),
+            embeddings: vec![0.1; 1536], // Placeholder embeddings
+            importance_score: 0.5,
+            access_count: 0,
+            last_accessed: Utc::now(),
+            created_at: Utc::now(),
+            tags: vec!["webhook_data".to_string(), "token_discovery".to_string()],
+            performance_impact: 0.0,
+        };
+
+        let mut memory = self.context_memory.write().await;
+        memory.insert(key.to_string(), context);
+
+        info!("💾 Stored context: {}", key);
+        Ok(())
+    }
+
     /// 🎯 Advanced Context Optimization - Shuffle Haystacks Strategy
     pub async fn optimize_context_for_llm(&self, signals: &[WeightedSignal]) -> Result<String> {
         info!("🎯 Optimizing context using shuffle haystacks strategy");

@@ -24,6 +24,7 @@ mod execution;
 mod jito;
 mod metrics;
 mod solana;
+mod rpc_load_balancer;
 
 use config::Config;
 use execution::ExecutionEngine;

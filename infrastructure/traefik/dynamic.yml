@@ -33,12 +33,46 @@ http:
         customRequestHeaders:
           X-Forwarded-Proto: "https"
 
-    # Rate Limiting
+    # Rate Limiting - General
     rate-limit:
       rateLimit:
         average: 100
         burst: 200
         period: 1m
+
+    # Rate Limiting - API Heavy
+    rate-limit-api:
+      rateLimit:
+        average: 50
+        burst: 100
+        period: 1m
+
+    # Rate Limiting - Trading Critical
+    rate-limit-trading:
+      rateLimit:
+        average: 1000
+        burst: 2000
+        period: 1m
+
+    # Authentication (for production)
+    auth:
+      basicAuth:
+        users:
+          - "admin:$2y$10$..."  # Replace with actual hash
+
+    # IP Whitelist (for production)
+    ip-whitelist:
+      ipWhiteList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # Circuit Breaker
+    circuit-breaker:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.3 || ResponseCodeRatio(500, 600, 0, 600) > 0.3"
 
     # CORS
     cors:
@@ -126,6 +160,48 @@ http:
       middlewares:
         - security-headers
 
+    # Vault Router (Admin only)
+    vault:
+      rule: "Host(`vault.localhost`)"
+      service: vault
+      middlewares:
+        - security-headers
+        - ip-whitelist
+        - rate-limit-api
+
+    # FinLlama Router
+    finllama:
+      rule: "Host(`finllama.localhost`)"
+      service: finllama
+      middlewares:
+        - security-headers
+        - rate-limit-api
+
+    # Deepseek Router
+    deepseek:
+      rule: "Host(`deepseek.localhost`)"
+      service: deepseek
+      middlewares:
+        - security-headers
+        - rate-limit-api
+
+    # Oumi Router
+    oumi:
+      rule: "Host(`oumi.localhost`)"
+      service: oumi
+      middlewares:
+        - security-headers
+        - rate-limit-trading
+        - circuit-breaker
+
+    # Scrapy Router
+    scrapy:
+      rule: "Host(`scrapy.localhost`)"
+      service: scrapy
+      middlewares:
+        - security-headers
+        - rate-limit
+
   # 🎯 Services
   services:
     dashboard:
@@ -174,3 +250,48 @@ http:
       loadBalancer:
         servers:
           - url: "http://kestra:8080"
+
+    vault:
+      loadBalancer:
+        servers:
+          - url: "http://vault:8200"
+        healthCheck:
+          path: "/v1/sys/health"
+          interval: "30s"
+          timeout: "10s"
+
+    finllama:
+      loadBalancer:
+        servers:
+          - url: "http://finllama:11434"
+        healthCheck:
+          path: "/api/tags"
+          interval: "60s"
+          timeout: "15s"
+
+    deepseek:
+      loadBalancer:
+        servers:
+          - url: "http://deepseek:11434"
+        healthCheck:
+          path: "/api/tags"
+          interval: "60s"
+          timeout: "15s"
+
+    oumi:
+      loadBalancer:
+        servers:
+          - url: "http://oumi:8080"
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "10s"
+
+    scrapy:
+      loadBalancer:
+        servers:
+          - url: "http://scrapy:8080"
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "10s"

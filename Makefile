@@ -151,6 +151,16 @@ security-scan: ## 🔐 Skanowanie bezpieczeństwa
 	cd services/dashboard && npm audit
 	@echo "$(GREEN)✅ Skanowanie zakończone!$(NC)"
 
+infisical-setup: ## 🔐 Konfiguruj Infisical secrets
+	@echo "$(BLUE)🔐 Konfigurowanie Infisical...$(NC)"
+	./scripts/infisical-setup.sh
+	@echo "$(GREEN)✅ Infisical skonfigurowany!$(NC)"
+
+infisical-sync: ## 🔄 Synchronizuj secrets z Infisical
+	@echo "$(BLUE)🔄 Synchronizacja secrets...$(NC)"
+	./scripts/infisical-sync.sh
+	@echo "$(GREEN)✅ Secrets zsynchronizowane!$(NC)"
+
 # 📦 RELEASE
 release: ## 📦 Przygotuj release
 	@echo "$(BLUE)📦 Przygotowywanie release...$(NC)"

@@ -323,6 +323,23 @@ impl HeliusClient {
             Err(anyhow!("Failed to fetch token info: {}", response.status()))
         }
     }
+
+    /// 📡 Make generic RPC request
+    pub async fn make_rpc_request(&self, request_body: &serde_json::Value) -> Result<serde_json::Value> {
+        let rpc_url = format!("{}/rpc", self.base_url);
+        let response = self.client
+            .post(&rpc_url)
+            .json(request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!("RPC request failed: {}", response.status()));
+        }
+
+        let json_response: serde_json::Value = response.json().await?;
+        Ok(json_response)
+    }
 }
 
 /// 📄 Basic token information from Helius
