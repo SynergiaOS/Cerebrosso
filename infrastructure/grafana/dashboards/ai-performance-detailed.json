@@ -1,0 +1,246 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🤖 AI Performance Deep Dive - Cerberus Phoenix v2.0",
+    "tags": ["ai", "performance", "agents", "optimization"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🎯 Decision Accuracy by Agent",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(cerebro_ai_confidence_accuracy_sum[5m]) / rate(cerebro_ai_confidence_accuracy_count[5m])",
+            "legendFormat": "{{agent_type}} Accuracy"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "⚡ Decision Latency Distribution",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(cerebro_ai_decision_latency_seconds_bucket[5m])",
+            "legendFormat": "{{agent_type}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "🧠 Fast Decision Agent Performance",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"FastDecision\", metric_type=\"win_rate\"}",
+            "legendFormat": "Win Rate"
+          },
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"FastDecision\", metric_type=\"avg_roi\"}",
+            "legendFormat": "Avg ROI"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type=\"FastDecision\"}[5m]))",
+            "legendFormat": "95th Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.5},
+                {"color": "green", "value": 0.7}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "🔍 Context Analysis Agent Performance",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"ContextAnalysis\", metric_type=\"win_rate\"}",
+            "legendFormat": "Win Rate"
+          },
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"ContextAnalysis\", metric_type=\"avg_roi\"}",
+            "legendFormat": "Avg ROI"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type=\"ContextAnalysis\"}[5m]))",
+            "legendFormat": "95th Latency"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "⚠️ Risk Assessment Agent Performance",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"RiskAssessment\", metric_type=\"win_rate\"}",
+            "legendFormat": "Win Rate"
+          },
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"RiskAssessment\", metric_type=\"avg_roi\"}",
+            "legendFormat": "Avg ROI"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type=\"RiskAssessment\"}[5m]))",
+            "legendFormat": "95th Latency"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "🔬 Deep Analysis Agent Performance",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 8},
+        "targets": [
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"DeepAnalysis\", metric_type=\"win_rate\"}",
+            "legendFormat": "Win Rate"
+          },
+          {
+            "expr": "cerebro_agent_performance_score{agent_type=\"DeepAnalysis\", metric_type=\"avg_roi\"}",
+            "legendFormat": "Avg ROI"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type=\"DeepAnalysis\"}[5m]))",
+            "legendFormat": "95th Latency"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "📊 Confidence Calibration Curves",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.1, rate(cerebro_ai_confidence_accuracy_bucket[5m]))",
+            "legendFormat": "{{agent_type}} 10th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.5, rate(cerebro_ai_confidence_accuracy_bucket[5m]))",
+            "legendFormat": "{{agent_type}} 50th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.9, rate(cerebro_ai_confidence_accuracy_bucket[5m]))",
+            "legendFormat": "{{agent_type}} 90th percentile"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "🔄 Parameter Optimization History",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "increase(cerebro_parameter_optimizations_total[1h])",
+            "legendFormat": "{{agent_type}} - {{optimization_method}}"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "📈 Optimization Improvement Trends",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 22},
+        "targets": [
+          {
+            "expr": "rate(cerebro_optimization_improvement_percentage_sum[1h]) / rate(cerebro_optimization_improvement_percentage_count[1h])",
+            "legendFormat": "{{agent_type}} Avg Improvement %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "🎯 Decision Confidence vs Success Rate",
+        "type": "scatterchart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "cerebro_ai_confidence_accuracy",
+            "legendFormat": "{{agent_type}}"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "⚡ Model Performance Comparison",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "avg by (model) (rate(cerebro_ai_decision_latency_seconds_sum[5m]) / rate(cerebro_ai_decision_latency_seconds_count[5m]))",
+            "legendFormat": "Avg Latency",
+            "format": "table"
+          },
+          {
+            "expr": "rate(cerebro_ai_decisions_total[5m])",
+            "legendFormat": "Decisions/sec",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "agent",
+          "type": "query",
+          "query": "label_values(cerebro_ai_decisions_total, agent_type)",
+          "refresh": 1,
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "model",
+          "type": "query",
+          "query": "label_values(cerebro_ai_decision_latency_seconds, model)",
+          "refresh": 1,
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    }
+  }
+}

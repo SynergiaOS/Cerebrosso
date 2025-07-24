@@ -34,6 +34,26 @@ pub struct AIConfig {
     pub deepseek_url: String,
     pub max_tokens: u32,
     pub temperature: f32,
+    pub models: ModelConfigs,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfigs {
+    pub fast_decision: ModelConfig,
+    pub context_analysis: ModelConfig,
+    pub risk_assessment: ModelConfig,
+    pub deep_analysis: ModelConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfig {
+    pub name: String,
+    pub url: String,
+    pub max_tokens: u32,
+    pub temperature: f32,
+    pub target_latency_ms: u32,
+    pub enable_kv_cache: bool,
+    pub quantization: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,11 +110,53 @@ impl Config {
             },
             ai: AIConfig {
                 finllama_url: env::var("FINLLAMA_API_URL")
-                    .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+                    .unwrap_or_else(|_| "http://finllama:11434".to_string()),
                 deepseek_url: env::var("DEEPSEEK_API_URL")
-                    .unwrap_or_else(|_| "http://localhost:11435".to_string()),
+                    .unwrap_or_else(|_| "http://deepseek:11434".to_string()),
                 max_tokens: 4096,
                 temperature: 0.1,
+                models: ModelConfigs {
+                    fast_decision: ModelConfig {
+                        name: "phi3".to_string(),
+                        url: env::var("FINLLAMA_API_URL")
+                            .unwrap_or_else(|_| "http://finllama:11434".to_string()),
+                        max_tokens: 1024,
+                        temperature: 0.3,
+                        target_latency_ms: 20,
+                        enable_kv_cache: true,
+                        quantization: "4bit".to_string(),
+                    },
+                    context_analysis: ModelConfig {
+                        name: "llama3:8b-instruct".to_string(),
+                        url: env::var("FINLLAMA_API_URL")
+                            .unwrap_or_else(|_| "http://finllama:11434".to_string()),
+                        max_tokens: 2048,
+                        temperature: 0.5,
+                        target_latency_ms: 50,
+                        enable_kv_cache: true,
+                        quantization: "4bit".to_string(),
+                    },
+                    risk_assessment: ModelConfig {
+                        name: "mistral:small".to_string(),
+                        url: env::var("DEEPSEEK_API_URL")
+                            .unwrap_or_else(|_| "http://deepseek:11434".to_string()),
+                        max_tokens: 1536,
+                        temperature: 0.4,
+                        target_latency_ms: 30,
+                        enable_kv_cache: true,
+                        quantization: "4bit".to_string(),
+                    },
+                    deep_analysis: ModelConfig {
+                        name: "llama3:70b-instruct".to_string(),
+                        url: env::var("FINLLAMA_API_URL")
+                            .unwrap_or_else(|_| "http://finllama:11434".to_string()),
+                        max_tokens: 4096,
+                        temperature: 0.6,
+                        target_latency_ms: 200,
+                        enable_kv_cache: true,
+                        quantization: "4bit".to_string(),
+                    },
+                },
             },
             context_engine: ContextEngineConfig {
                 max_context_size: 8192,

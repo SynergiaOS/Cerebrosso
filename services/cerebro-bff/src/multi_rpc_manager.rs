@@ -106,7 +106,7 @@ pub enum RoutingStrategy {
     EnhancedDataFirst,  // Prefer providers with rich metadata
 }
 
-/// 🔄 Multi-RPC Manager
+/// 🔄 Multi-RPC Manager (FREE PROVIDERS ONLY)
 pub struct MultiRpcManager {
     providers: Arc<RwLock<HashMap<String, RpcProvider>>>,
     stats: Arc<RwLock<HashMap<String, ProviderStats>>>,
@@ -114,6 +114,7 @@ pub struct MultiRpcManager {
     routing_strategy: RoutingStrategy,
     current_provider_index: Arc<Mutex<usize>>,
     health_check_interval: Duration,
+    current_network: SolanaNetwork, // Current network (mainnet/devnet)
 }
 
 impl MultiRpcManager {
@@ -123,63 +124,53 @@ impl MultiRpcManager {
         
         // Add default providers
         providers.insert("helius".to_string(), RpcProvider {
-            name: "Helius API Pro".to_string(),
-            url: "https://mainnet.helius-rpc.com/v1/".to_string(),
+            name: "Helius API Pro (FREE)".to_string(),
+            mainnet_url: "https://api.helius.xyz/v1/rpc".to_string(),
+            devnet_url: "https://api.helius.xyz/v1/rpc?cluster=devnet".to_string(),
             api_key: std::env::var("HELIUS_API_KEY").ok(),
-            monthly_limit: 1_000_000,
+            monthly_limit: 100_000, // FREE tier limit
             rpm_limit: Some(10),
-            cost_per_request: 0.001,
+            cost_per_request: 0.0, // FREE
             has_enhanced_data: true,
             supports_webhooks: true,
             priority: 10,
+            is_free: true,
         });
         
-        providers.insert("quicknode".to_string(), RpcProvider {
-            name: "QuickNode Free".to_string(),
-            url: "https://solana-mainnet.g.alchemy.com/v2/".to_string(),
-            api_key: std::env::var("QUICKNODE_API_KEY").ok(),
-            monthly_limit: 100_000,
-            rpm_limit: None,
-            cost_per_request: 0.0015,
+        // NOTE: QuickNode REMOVED - it's PAID, not free!
+        
+        providers.insert("alchemy".to_string(), RpcProvider {
+            name: "Alchemy (FREE)".to_string(),
+            mainnet_url: std::env::var("ALCHEMY_MAINNET_URL")
+                .unwrap_or_else(|_| "https://solana-mainnet.g.alchemy.com/v2/demo".to_string()),
+            devnet_url: std::env::var("ALCHEMY_DEVNET_URL")
+                .unwrap_or_else(|_| "https://solana-devnet.g.alchemy.com/v2/demo".to_string()),
+            api_key: std::env::var("ALCHEMY_API_KEY").ok(),
+            monthly_limit: 100_000, // FREE tier
+            rpm_limit: None, // No RPM limit
+            cost_per_request: 0.0, // FREE
             has_enhanced_data: false,
             supports_webhooks: false,
             priority: 8,
+            is_free: true,
         });
         
-        providers.insert("alchemy".to_string(), RpcProvider {
-            name: "Alchemy Free".to_string(),
-            url: "https://solana-mainnet.g.alchemy.com/v2/".to_string(),
-            api_key: std::env::var("ALCHEMY_API_KEY").ok(),
-            monthly_limit: 100_000,
-            rpm_limit: None,
-            cost_per_request: 0.0012,
-            has_enhanced_data: false,
-            supports_webhooks: false,
-            priority: 7,
-        });
+        // NOTE: Genesys REMOVED - unclear if truly free
         
-        providers.insert("genesys".to_string(), RpcProvider {
-            name: "Genesys Free".to_string(),
-            url: "https://mainnet-beta.genesys.network/v1/rpc".to_string(),
-            api_key: std::env::var("GENESYS_API_KEY").ok(),
-            monthly_limit: 1_000_000,
-            rpm_limit: None,
-            cost_per_request: 0.0008,
-            has_enhanced_data: true,
-            supports_webhooks: false,
-            priority: 9,
-        });
-        
-        providers.insert("public_solana".to_string(), RpcProvider {
-            name: "Public Solana RPC".to_string(),
-            url: "https://api.mainnet-beta.solana.com".to_string(),
+        providers.insert("public".to_string(), RpcProvider {
+            name: "Public Solana RPC (FREE)".to_string(),
+            mainnet_url: std::env::var("PUBLIC_MAINNET_RPC")
+                .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string()),
+            devnet_url: std::env::var("PUBLIC_DEVNET_RPC")
+                .unwrap_or_else(|_| "https://api.devnet.solana.com".to_string()),
             api_key: None,
-            monthly_limit: u32::MAX, // No official limit
-            rpm_limit: None,
-            cost_per_request: 0.0,
+            monthly_limit: u32::MAX, // Unlimited
+            rpm_limit: Some(100), // Rate limited but free
+            cost_per_request: 0.0, // FREE
             has_enhanced_data: false,
             supports_webhooks: false,
-            priority: 5,
+            priority: 6,
+            is_free: true,
         });
         
         let stats: HashMap<String, ProviderStats> = providers.keys()
@@ -193,6 +184,7 @@ impl MultiRpcManager {
             routing_strategy,
             current_provider_index: Arc::new(Mutex::new(0)),
             health_check_interval: Duration::from_secs(300), // 5 minutes
+            current_network: SolanaNetwork::from_str(&std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "mainnet-beta".to_string())),
         }
     }
 
@@ -338,7 +330,7 @@ impl MultiRpcManager {
         let provider = providers.get(provider_name)
             .ok_or_else(|| anyhow!("Provider not found: {}", provider_name))?;
         
-        let mut url = provider.url.clone();
+        let mut url = provider.get_url_for_network(&self.current_network).to_string();
         if let Some(api_key) = &provider.api_key {
             if !url.ends_with('/') {
                 url.push('/');
@@ -430,7 +422,7 @@ impl MultiRpcManager {
 
     /// 🏥 Check individual provider health
     async fn check_provider_health(&self, provider: &RpcProvider) -> Result<()> {
-        let mut url = provider.url.clone();
+        let mut url = provider.get_url_for_network(&self.current_network).to_string();
         if let Some(api_key) = &provider.api_key {
             if !url.ends_with('/') {
                 url.push('/');

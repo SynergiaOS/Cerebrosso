@@ -1,0 +1,232 @@
+groups:
+  - name: cerberus_phoenix_alerts
+    rules:
+      # 🚨 Critical AI Performance Alerts
+      - alert: AIDecisionLatencyHigh
+        expr: histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: ai_agent
+        annotations:
+          summary: "AI decision latency is high"
+          description: "95th percentile AI decision latency is {{ $value }}s for agent {{ $labels.agent_type }}"
+
+      - alert: AIDecisionLatencyCritical
+        expr: histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket[5m])) > 0.2
+        for: 1m
+        labels:
+          severity: critical
+          component: ai_agent
+        annotations:
+          summary: "AI decision latency is critically high"
+          description: "95th percentile AI decision latency is {{ $value }}s for agent {{ $labels.agent_type }} - exceeding HFT requirements"
+
+      - alert: AIAgentPerformanceDegraded
+        expr: cerebro_agent_performance_score{metric_type="win_rate"} < 0.4
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_agent
+        annotations:
+          summary: "AI agent performance degraded"
+          description: "Agent {{ $labels.agent_type }} win rate dropped to {{ $value | humanizePercentage }}"
+
+      - alert: AIAgentPerformanceCritical
+        expr: cerebro_agent_performance_score{metric_type="win_rate"} < 0.3
+        for: 2m
+        labels:
+          severity: critical
+          component: ai_agent
+        annotations:
+          summary: "AI agent performance critically low"
+          description: "Agent {{ $labels.agent_type }} win rate is critically low at {{ $value | humanizePercentage }}"
+
+      # 💰 Trading Performance Alerts
+      - alert: PortfolioLossHigh
+        expr: cerebro_portfolio_roi_percentage < -10
+        for: 1m
+        labels:
+          severity: warning
+          component: paper_trading
+        annotations:
+          summary: "Portfolio experiencing high losses"
+          description: "Portfolio {{ $labels.portfolio_id }} ROI is {{ $value }}%"
+
+      - alert: PortfolioLossCritical
+        expr: cerebro_portfolio_roi_percentage < -20
+        for: 30s
+        labels:
+          severity: critical
+          component: paper_trading
+        annotations:
+          summary: "Portfolio experiencing critical losses"
+          description: "Portfolio {{ $labels.portfolio_id }} ROI is critically low at {{ $value }}% - consider emergency stop"
+
+      - alert: TradingVolumeDropped
+        expr: rate(cerebro_paper_trades_total[5m]) < 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: paper_trading
+        annotations:
+          summary: "Trading volume dropped significantly"
+          description: "Trading rate is {{ $value }} trades/sec - system may be inactive"
+
+      - alert: NoTradingActivity
+        expr: rate(cerebro_paper_trades_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: paper_trading
+        annotations:
+          summary: "No trading activity detected"
+          description: "No trades executed in the last 10 minutes - system may be down"
+
+      # 📊 Market Data Alerts
+      - alert: MarketDataLatencyHigh
+        expr: histogram_quantile(0.95, rate(cerebro_market_data_latency_seconds_bucket[5m])) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+          component: market_data
+        annotations:
+          summary: "Market data latency is high"
+          description: "95th percentile market data latency is {{ $value }}s for source {{ $labels.source }}"
+
+      - alert: MarketDataStale
+        expr: rate(cerebro_market_data_updates_total[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: market_data
+        annotations:
+          summary: "Market data updates are stale"
+          description: "Market data update rate is {{ $value }} updates/sec for source {{ $labels.source }}"
+
+      - alert: MarketDataSourceDown
+        expr: rate(cerebro_market_data_updates_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: market_data
+        annotations:
+          summary: "Market data source appears to be down"
+          description: "No market data updates from {{ $labels.source }} in the last 10 minutes"
+
+      # 🧠 Adaptive Learning Alerts
+      - alert: OptimizationFailureRate
+        expr: rate(cerebro_parameter_optimizations_total[1h]) == 0
+        for: 6h
+        labels:
+          severity: warning
+          component: adaptive_learning
+        annotations:
+          summary: "No parameter optimizations in 6 hours"
+          description: "Adaptive learning system may not be functioning properly"
+
+      - alert: ConfidenceCalibrationPoor
+        expr: cerebro_agent_performance_score{metric_type="confidence_calibration"} < 0.3
+        for: 10m
+        labels:
+          severity: warning
+          component: adaptive_learning
+        annotations:
+          summary: "Poor confidence calibration detected"
+          description: "Agent {{ $labels.agent_type }} confidence calibration is {{ $value | humanizePercentage }}"
+
+      # 🔄 System Health Alerts
+      - alert: FeedbackProcessingStalled
+        expr: rate(cerebro_feedback_processing_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: feedback_system
+        annotations:
+          summary: "Feedback processing appears stalled"
+          description: "No feedback processed in the last 5 minutes"
+
+      - alert: ContextProcessingLatencyHigh
+        expr: histogram_quantile(0.95, rate(cerebro_context_processing_duration_seconds_bucket[5m])) > 2.0
+        for: 3m
+        labels:
+          severity: warning
+          component: context_engine
+        annotations:
+          summary: "Context processing latency is high"
+          description: "95th percentile context processing latency is {{ $value }}s"
+
+      - alert: SystemHealthLow
+        expr: |
+          (
+            (rate(cerebro_ai_decisions_total[5m]) > 0) *
+            (avg(cerebro_agent_performance_score{metric_type="win_rate"}) > 0.5) *
+            (rate(cerebro_feedback_processing_total[5m]) > 0)
+          ) < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Overall system health is low"
+          description: "System health score is {{ $value | humanizePercentage }} - multiple components may be failing"
+
+      # 💸 Economic Alerts
+      - alert: DailyPnLTarget
+        expr: sum(increase(cerebro_paper_trading_pnl_sol[1d])) < 0.4
+        for: 1h
+        labels:
+          severity: info
+          component: trading_performance
+        annotations:
+          summary: "Daily P&L target not met"
+          description: "Daily P&L is {{ $value }} SOL, target is 0.4 SOL (5% of 8 SOL)"
+
+      - alert: HourlyROIBelowTarget
+        expr: avg(rate(cerebro_portfolio_roi_percentage[1h])) < 0.02
+        for: 1h
+        labels:
+          severity: warning
+          component: trading_performance
+        annotations:
+          summary: "Hourly ROI below target"
+          description: "Hourly ROI is {{ $value | humanizePercentage }}, target is 2%"
+
+  - name: cerberus_phoenix_sla_alerts
+    rules:
+      # 📊 SLA Monitoring
+      - alert: AIDecisionSLABreach
+        expr: |
+          (
+            histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type="FastDecision"}[5m])) > 0.02 or
+            histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type="ContextAnalysis"}[5m])) > 0.05 or
+            histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type="RiskAssessment"}[5m])) > 0.03 or
+            histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket{agent_type="DeepAnalysis"}[5m])) > 0.2
+          )
+        for: 2m
+        labels:
+          severity: warning
+          component: sla
+        annotations:
+          summary: "AI decision SLA breach"
+          description: "Agent {{ $labels.agent_type }} exceeded target latency SLA"
+
+      - alert: TradingSuccessRateSLA
+        expr: avg(cerebro_agent_performance_score{metric_type="win_rate"}) < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: sla
+        annotations:
+          summary: "Trading success rate SLA breach"
+          description: "Average win rate is {{ $value | humanizePercentage }}, SLA target is 85%"
+
+      - alert: SystemUptimeSLA
+        expr: up{job="cerebro-bff"} < 1
+        for: 1m
+        labels:
+          severity: critical
+          component: sla
+        annotations:
+          summary: "System uptime SLA breach"
+          description: "Cerebro-BFF service is down - 99.9% uptime SLA at risk"

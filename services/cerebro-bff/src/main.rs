@@ -5,12 +5,13 @@
 
 use anyhow::Result;
 use axum::{
-    extract::{State, Path},
+    extract::{State, Path, Query},
     http::StatusCode,
     response::Json,
     routing::{get, post},
     Router,
 };
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
@@ -22,6 +23,10 @@ mod config;
 mod context_engine;
 mod ai_agent;
 mod qdrant_client;
+mod feedback_system;
+mod paper_trading;
+mod market_data_feed;
+mod adaptive_learning;
 mod metrics;
 mod helius_client;
 mod quicknode_client;
@@ -43,6 +48,10 @@ use batch_optimizer::{BatchOptimizer, BatchConfig};
 use api_usage_monitor::ApiUsageMonitor;
 use multi_rpc_manager::{MultiRpcManager, RoutingStrategy};
 use metrics::MetricsCollector;
+use feedback_system::FeedbackSystem;
+use paper_trading::PaperTradingEngine;
+use market_data_feed::MarketDataFeed;
+use adaptive_learning::AdaptiveLearningEngine;
 
 /// 🏗️ Główna struktura aplikacji
 #[derive(Clone)]
@@ -50,6 +59,10 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub context_engine: Arc<ContextEngine>,
     pub ai_agent: Arc<AIAgent>,
+    pub feedback_system: Arc<FeedbackSystem>,
+    pub paper_trading: Arc<PaperTradingEngine>,
+    pub market_data_feed: Arc<MarketDataFeed>,
+    pub adaptive_learning: Arc<AdaptiveLearningEngine>,
     pub metrics: Arc<MetricsCollector>,
     pub helius_client: Arc<HeliusClient>,
     pub quicknode_client: Arc<QuickNodeClient>,
@@ -131,10 +144,17 @@ async fn main() -> Result<()> {
     let config = Arc::new(Config::load()?);
     info!("✅ Konfiguracja załadowana");
 
+    // 📊 Inicjalizacja MetricsCollector
+    let metrics = Arc::new(MetricsCollector::new());
+
     // 🚀 Inicjalizacja komponentów
     let context_engine = Arc::new(ContextEngine::new(config.clone()).await?);
-    let ai_agent = Arc::new(AIAgent::new(config.clone()).await?);
-    let metrics = Arc::new(MetricsCollector::new());
+    let ai_agent = Arc::new(AIAgent::new(config.clone(), metrics.clone()).await?);
+
+    // 📊 Inicjalizacja Feedback System
+    let feedback_db_url = std::env::var("FEEDBACK_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://cerberus:feedback_password_2024@localhost:5433/cerberus_feedback".to_string());
+    let feedback_system = Arc::new(FeedbackSystem::new(config.clone(), &feedback_db_url).await?);
 
     // 🌟 Inicjalizacja Helius i QuickNode klientów
     let helius_client = Arc::new(HeliusClient::new(
@@ -183,6 +203,28 @@ async fn main() -> Result<()> {
     };
     let multi_rpc_manager = Arc::new(MultiRpcManager::new(routing_strategy));
 
+    // 📈 Inicjalizacja Paper Trading Engine
+    let paper_trading = Arc::new(PaperTradingEngine::new(
+        config.clone(),
+        sqlx::PgPool::connect(&feedback_db_url).await?
+    ).await?);
+
+    // 📊 Inicjalizacja Market Data Feed
+    let market_data_feed = Arc::new(MarketDataFeed::new(
+        config.clone(),
+        helius_client.clone(),
+        quicknode_client.clone()
+    ).await?);
+
+    // 🧠 Inicjalizacja Adaptive Learning Engine
+    let adaptive_learning = Arc::new(AdaptiveLearningEngine::new(
+        config.clone(),
+        sqlx::PgPool::connect(&feedback_db_url).await?,
+        feedback_system.clone(),
+        paper_trading.clone(),
+        ai_agent.clone()
+    ).await?);
+
     info!("✅ Wszystkie komponenty zainicjalizowane");
 
     // 🏗️ Tworzenie stanu aplikacji
@@ -190,6 +232,10 @@ async fn main() -> Result<()> {
         config: config.clone(),
         context_engine,
         ai_agent,
+        feedback_system,
+        paper_trading,
+        market_data_feed,
+        adaptive_learning,
         metrics,
         helius_client,
         quicknode_client,
@@ -208,6 +254,12 @@ async fn main() -> Result<()> {
         .route("/api/v1/analyze/patterns", post(analyze_patterns))
         .route("/api/v1/optimize/identify", post(identify_improvements))
         .route("/api/v1/optimize/generate", post(generate_optimizations))
+        .route("/api/v1/learning/optimize", post(optimize_agent_parameters))
+        .route("/api/v1/learning/stats", get(get_optimization_stats))
+        .route("/api/v1/learning/performance", get(get_agent_performance))
+        .route("/api/v1/metrics/trading-summary", get(get_trading_summary))
+        .route("/api/v1/metrics/system-health", get(get_system_health))
+        .route("/api/v1/webhook/token-events", post(handle_token_events))
         .route("/api/v1/backtest/run", post(run_backtest))
         .route("/api/v1/context/update", post(update_context))
         .route("/api/v1/reports/learning", post(generate_learning_report))
@@ -258,7 +310,7 @@ async fn health_check(State(state): State<AppState>) -> Result<Json<HealthRespon
 
     // TODO: Sprawdzenie połączeń z Qdrant i LLM
     let qdrant_connection = true; // state.context_engine.check_qdrant_connection().await;
-    let llm_connection = true;    // state.ai_agent.check_llm_connection().await;
+    let llm_connection = state.ai_agent.check_llm_connection().await;
     let context_count = 1234;    // state.context_engine.get_context_count().await;
 
     let response = HealthResponse {
@@ -760,6 +812,146 @@ async fn get_rpc_providers(
     });
 
     Ok(Json(response))
+}
+
+/// 🧠 Optimize agent parameters
+async fn optimize_agent_parameters(
+    State(state): State<AppState>,
+    Json(request): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let agent_type_str = request.get("agent_type")
+        .and_then(|v| v.as_str())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    let agent_type = match agent_type_str {
+        "FastDecision" => ai_agent::AgentType::FastDecision,
+        "ContextAnalysis" => ai_agent::AgentType::ContextAnalysis,
+        "RiskAssessment" => ai_agent::AgentType::RiskAssessment,
+        "DeepAnalysis" => ai_agent::AgentType::DeepAnalysis,
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    match state.adaptive_learning.optimize_agent_parameters(agent_type).await {
+        Ok(result) => Ok(Json(serde_json::to_value(result).unwrap())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// 📊 Get optimization statistics
+async fn get_optimization_stats(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let stats = state.adaptive_learning.get_optimization_stats().await;
+    Ok(Json(serde_json::to_value(stats).unwrap()))
+}
+
+/// 📈 Get agent performance metrics
+async fn get_agent_performance(
+    State(state): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let agent_type_str = params.get("agent_type")
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    let agent_type = match agent_type_str.as_str() {
+        "FastDecision" => ai_agent::AgentType::FastDecision,
+        "ContextAnalysis" => ai_agent::AgentType::ContextAnalysis,
+        "RiskAssessment" => ai_agent::AgentType::RiskAssessment,
+        "DeepAnalysis" => ai_agent::AgentType::DeepAnalysis,
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    match state.feedback_system.get_agent_performance(agent_type).await {
+        Ok(Some(performance)) => Ok(Json(serde_json::to_value(performance).unwrap())),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// 📊 Get trading performance summary
+async fn get_trading_summary(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let summary = state.metrics.get_trading_performance_summary();
+    Ok(Json(serde_json::to_value(summary).unwrap()))
+}
+
+/// 🔥 Get system health score
+async fn get_system_health(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let health_score = state.metrics.get_system_health_score();
+
+    let health_data = serde_json::json!({
+        "health_score": health_score,
+        "status": if health_score > 0.8 { "healthy" } else if health_score > 0.5 { "warning" } else { "critical" },
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "components": {
+            "ai_agents": "operational",
+            "paper_trading": "operational",
+            "market_data": "operational",
+            "adaptive_learning": "operational"
+        }
+    });
+
+    Ok(Json(health_data))
+}
+
+/// 🎣 Handle token events from Helius webhook
+async fn handle_token_events(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    info!("🎣 Received token events from Helius webhook");
+
+    // Extract events from payload
+    let empty_vec = vec![];
+    let events = payload.get("events")
+        .and_then(|e| e.as_array())
+        .unwrap_or(&empty_vec);
+
+    info!("Processing {} token events", events.len());
+
+    // Process each event through AI agents
+    for event in events {
+        if let Some(token_mint) = event.get("token_mint").and_then(|m| m.as_str()) {
+            if let Some(trading_signals) = event.get("trading_signals").and_then(|s| s.as_array()) {
+                // Convert to context for AI analysis
+                let context = format!(
+                    "Token event detected: mint={}, signals={}, timestamp={}",
+                    token_mint,
+                    trading_signals.len(),
+                    event.get("timestamp").and_then(|t| t.as_u64()).unwrap_or(0)
+                );
+
+                // Trigger AI analysis
+                match state.ai_agent.make_decision(&context, &[]).await {
+                    Ok(decision) => {
+                        info!("AI decision for token {}: {} (confidence: {:.2})",
+                              token_mint, decision.action, decision.confidence);
+
+                        // Record metrics
+                        state.metrics.record_ai_decision(
+                            &decision.agent_type.to_string(),
+                            &decision.action,
+                            decision.confidence,
+                            decision.latency_ms,
+                            &decision.model_used
+                        );
+                    }
+                    Err(e) => {
+                        warn!("Failed to process AI decision for token {}: {}", token_mint, e);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "status": "processed",
+        "events_count": events.len(),
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    })))
 }
 
 /// 📊 Get comprehensive RPC performance report

@@ -186,6 +186,7 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./prometheus/alerts:/etc/prometheus/alerts
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -210,6 +211,8 @@ services:
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
       JITO_BLOCK_ENGINE_URL: ${JITO_BLOCK_ENGINE_URL:-https://mainnet.block-engine.jito.wtf}
       CEREBRO_BFF_URL: http://cerebro-bff:8080
+      HELIUS_AUTH_TOKEN: ${HELIUS_AUTH_TOKEN:-default_token}
+      KESTRA_TRIGGER_URL: ${KESTRA_TRIGGER_URL:-http://kestra:8080/api/v1/executions/trigger}
     volumes:
       - ./secrets:/app/secrets:ro
     networks:

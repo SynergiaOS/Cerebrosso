@@ -1,0 +1,233 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Cerberus Phoenix v2.0 - AI Trading Overview",
+    "tags": ["cerberus", "ai-trading", "solana", "hft"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🎯 AI Decision Performance",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(cerebro_ai_decisions_total[5m])",
+            "legendFormat": "Decisions/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.1},
+                {"color": "green", "value": 1.0}
+              ]
+            },
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "💰 Portfolio Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "cerebro_portfolio_value_usd",
+            "legendFormat": "Portfolio Value ($)"
+          },
+          {
+            "expr": "cerebro_portfolio_roi_percentage",
+            "legendFormat": "ROI (%)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth"
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "🤖 AI Agent Latency",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_ai_decision_latency_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "📈 Trading Results Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "sum by (result) (cerebro_paper_trades_total)",
+            "legendFormat": "{{result}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "🧠 Agent Performance Comparison",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "cerebro_agent_performance_score{metric_type=\"win_rate\"}",
+            "legendFormat": "{{agent_type}} Win Rate"
+          },
+          {
+            "expr": "cerebro_agent_performance_score{metric_type=\"avg_roi\"}",
+            "legendFormat": "{{agent_type}} Avg ROI"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "continuous-GrYlRd"},
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "🔄 Optimization Activity",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(cerebro_parameter_optimizations_total[1h])",
+            "legendFormat": "{{agent_type}} optimizations/hour"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "📊 Market Data Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(cerebro_market_data_updates_total[5m])",
+            "legendFormat": "Updates/sec"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(cerebro_market_data_latency_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile latency"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "🎯 Confidence Calibration",
+        "type": "histogram",
+        "gridPos": {"h": 4, "w": 8, "x": 8, "y": 16},
+        "targets": [
+          {
+            "expr": "cerebro_ai_confidence_accuracy",
+            "legendFormat": "{{agent_type}}"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "💹 P&L Distribution",
+        "type": "histogram",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 16},
+        "targets": [
+          {
+            "expr": "cerebro_paper_trading_pnl_sol",
+            "legendFormat": "{{agent_type}}"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "🔥 System Health Score",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "(rate(cerebro_ai_decisions_total[5m]) > 0) * (avg(cerebro_agent_performance_score{metric_type=\"win_rate\"}) > 0.5) * (rate(cerebro_feedback_processing_total[5m]) > 0)",
+            "legendFormat": "Health Score"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.5},
+                {"color": "green", "value": 0.8}
+              ]
+            },
+            "min": 0,
+            "max": 1,
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "📈 Real-time Trading Activity",
+        "type": "logs",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "expr": "{job=\"cerebro-bff\"} |= \"trade\" |= \"executed\"",
+            "legendFormat": "Trading Logs"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "portfolio",
+          "type": "query",
+          "query": "label_values(cerebro_portfolio_value_usd, portfolio_id)",
+          "refresh": 1
+        },
+        {
+          "name": "agent_type",
+          "type": "query", 
+          "query": "label_values(cerebro_ai_decisions_total, agent_type)",
+          "refresh": 1
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Optimizations",
+          "datasource": "Prometheus",
+          "expr": "changes(cerebro_parameter_optimizations_total[1m]) > 0",
+          "titleFormat": "Parameter Optimization",
+          "textFormat": "{{agent_type}} optimized using {{optimization_method}}"
+        }
+      ]
+    }
+  }
+}

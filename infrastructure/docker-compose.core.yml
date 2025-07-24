@@ -22,6 +22,7 @@ volumes:
   vault_data:
   finllama_data:
   deepseek_data:
+  timescale_data:
 
 services:
   # 🚪 Traefik - API Gateway & Load Balancer
@@ -118,7 +119,29 @@ services:
     networks:
       - cerberus-net
 
-  # 🔐 HashiCorp Vault - Secret Management (DEV MODE)
+  # � TimescaleDB - Feedback System Database
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cerberus-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${FEEDBACK_DB:-cerberus_feedback}
+      POSTGRES_USER: ${FEEDBACK_USER:-cerberus}
+      POSTGRES_PASSWORD: ${FEEDBACK_PASSWORD:-feedback_password_2024}
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./sql/feedback_init.sql:/docker-entrypoint-initdb.d/feedback_init.sql:ro
+    networks:
+      - cerberus-net
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FEEDBACK_USER:-cerberus}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # �🔐 HashiCorp Vault - Secret Management (DEV MODE)
   vault:
     image: hashicorp/vault:1.15
     container_name: cerberus-vault
@@ -254,6 +277,8 @@ services:
       - cerberus-net
     depends_on:
       - qdrant
+      - finllama
+      - deepseek
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.cerebro-bff.rule=Host(`cerebro.localhost`)"
@@ -267,7 +292,7 @@ services:
     container_name: cerberus-finllama
     restart: unless-stopped
     ports:
-      - "11435:11434"
+      - "11434:11434"
     volumes:
       - finllama_data:/root/.ollama
     environment:
@@ -278,6 +303,12 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.finllama.rule=Host(`finllama.localhost`)"
       - "traefik.http.services.finllama.loadbalancer.server.port=11434"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # 🧮 Deepseek-Math - Mathematical LLM
   deepseek:
@@ -285,7 +316,7 @@ services:
     container_name: cerberus-deepseek
     restart: unless-stopped
     ports:
-      - "11436:11434"
+      - "11435:11434"
     volumes:
       - deepseek_data:/root/.ollama
     environment:
@@ -296,6 +327,12 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.deepseek.rule=Host(`deepseek.localhost`)"
       - "traefik.http.services.deepseek.loadbalancer.server.port=11434"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # 🔍 Oumi - On-chain Data Collector (DISABLED - service not implemented yet)
   # oumi:

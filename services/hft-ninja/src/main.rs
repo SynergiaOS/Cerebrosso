@@ -25,10 +25,12 @@ mod jito;
 mod metrics;
 mod solana;
 mod rpc_load_balancer;
+mod webhook_handler;
 
 use config::Config;
 use execution::ExecutionEngine;
 use metrics::MetricsCollector;
+use webhook_handler::{WebhookState, WebhookMetrics, RateLimiter, handle_helius_webhook, get_webhook_metrics};
 
 /// 🏗️ Główna struktura aplikacji
 #[derive(Clone)]
@@ -36,6 +38,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub execution_engine: Arc<ExecutionEngine>,
     pub metrics: Arc<MetricsCollector>,
+    pub webhook_state: WebhookState,
 }
 
 /// 📊 Struktura odpowiedzi health check
@@ -133,11 +136,30 @@ async fn main() -> Result<()> {
 
     info!("✅ Silnik egzekucji zainicjalizowany");
 
+    // 🎣 Inicjalizacja Webhook State
+    let helius_auth_token = std::env::var("HELIUS_AUTH_TOKEN")
+        .unwrap_or_else(|_| "default_token".to_string());
+    let kestra_trigger_url = std::env::var("KESTRA_TRIGGER_URL")
+        .unwrap_or_else(|_| "http://kestra:8080/api/v1/executions/trigger".to_string());
+    let cerebro_bff_url = std::env::var("CEREBRO_BFF_URL")
+        .unwrap_or_else(|_| "http://cerebro-bff:3000".to_string());
+
+    let webhook_state = WebhookState {
+        helius_auth_token,
+        kestra_trigger_url,
+        cerebro_bff_url,
+        metrics: Arc::new(WebhookMetrics::default()),
+        rate_limiter: Arc::new(tokio::sync::RwLock::new(RateLimiter::new(100))), // 100 req/min
+    };
+
+    info!("✅ Webhook handler zainicjalizowany");
+
     // 🏗️ Tworzenie stanu aplikacji
     let app_state = AppState {
         config: config.clone(),
         execution_engine,
         metrics,
+        webhook_state: webhook_state.clone(),
     };
 
     // 🌐 Konfiguracja routingu
@@ -152,6 +174,9 @@ async fn main() -> Result<()> {
         .route("/piranha/analyze", post(piranha_analyze_pool))
         .route("/piranha/execute", post(piranha_execute_snipe))
         .route("/piranha/positions", get(piranha_get_positions))
+        // 🎣 Helius Webhook Endpoints
+        .route("/webhooks/helius", post(handle_helius_webhook_wrapper))
+        .route("/webhooks/metrics", get(get_webhook_metrics_wrapper))
         .route("/metrics", get(metrics::export_metrics))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -381,4 +406,23 @@ async fn piranha_get_positions(
         "strategy": "piranha_surf",
         "timestamp": chrono::Utc::now().timestamp()
     })))
+}
+
+// 🎣 Webhook wrapper functions
+async fn handle_helius_webhook_wrapper(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<webhook_handler::HeliusWebhookPayload>,
+) -> impl axum::response::IntoResponse {
+    handle_helius_webhook(
+        State(state.webhook_state),
+        headers,
+        Json(payload),
+    ).await
+}
+
+async fn get_webhook_metrics_wrapper(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    get_webhook_metrics(State(state.webhook_state)).await
 }
