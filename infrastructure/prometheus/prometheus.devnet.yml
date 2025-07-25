@@ -1,0 +1,222 @@
+# 📊 Prometheus Configuration - Devnet Testing
+# Enhanced monitoring for Solana Devnet testing environment
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'devnet'
+    project: 'cerberus-phoenix-v2'
+
+# Alertmanager configuration (optional for devnet)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus-devnet'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # HFT-Ninja metrics (Devnet)
+  - job_name: 'hft-ninja-devnet'
+    static_configs:
+      - targets: ['hft-ninja-devnet:8080']
+    scrape_interval: 10s  # More frequent for testing
+    metrics_path: /metrics
+    scrape_timeout: 5s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # Cerebro-BFF metrics (Devnet)
+  - job_name: 'cerebro-bff-devnet'
+    static_configs:
+      - targets: ['cerebro-bff-devnet:8080']
+    scrape_interval: 10s
+    metrics_path: /metrics
+    scrape_timeout: 5s
+    honor_labels: true
+
+  # Webhook-specific metrics
+  - job_name: 'webhook-metrics-devnet'
+    static_configs:
+      - targets: ['hft-ninja-devnet:8080']
+    scrape_interval: 5s  # High frequency for webhook testing
+    metrics_path: /webhooks/metrics
+    scrape_timeout: 3s
+    honor_labels: true
+
+  # Qdrant metrics (Devnet)
+  - job_name: 'qdrant-devnet'
+    static_configs:
+      - targets: ['qdrant-devnet:6333']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    scrape_timeout: 10s
+
+  # Kestra metrics (Devnet)
+  - job_name: 'kestra-devnet'
+    static_configs:
+      - targets: ['kestra-devnet:8080']
+    scrape_interval: 30s
+    metrics_path: /actuator/prometheus
+    scrape_timeout: 10s
+
+  # PostgreSQL metrics (if exporter is available)
+  - job_name: 'postgres-devnet'
+    static_configs:
+      - targets: ['postgres-devnet:5432']
+    scrape_interval: 60s
+    metrics_path: /metrics
+    scrape_timeout: 10s
+
+  # Docker container metrics
+  - job_name: 'docker-devnet'
+    static_configs:
+      - targets: ['host.docker.internal:9323']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    scrape_timeout: 10s
+
+  # Custom Solana Devnet metrics
+  - job_name: 'solana-devnet-rpc'
+    static_configs:
+      - targets: ['api.devnet.solana.com:443']
+    scrape_interval: 60s
+    metrics_path: /
+    scheme: https
+    scrape_timeout: 30s
+    params:
+      method: ['getHealth']
+
+# Recording rules for devnet testing
+recording_rules:
+  - name: devnet_webhook_rules
+    interval: 10s
+    rules:
+      - record: devnet:webhook_processing_rate
+        expr: rate(webhook_processing_total[1m])
+      
+      - record: devnet:webhook_success_rate
+        expr: rate(webhook_processing_success_total[1m]) / rate(webhook_processing_total[1m])
+      
+      - record: devnet:webhook_latency_p95
+        expr: histogram_quantile(0.95, rate(webhook_processing_duration_seconds_bucket[1m]))
+
+  - name: devnet_trading_rules
+    interval: 30s
+    rules:
+      - record: devnet:trading_signals_rate
+        expr: rate(trading_signals_generated_total[5m])
+      
+      - record: devnet:risk_indicators_rate
+        expr: rate(risk_indicators_detected_total[5m])
+      
+      - record: devnet:ai_decisions_rate
+        expr: rate(ai_decisions_made_total[5m])
+
+  - name: devnet_system_rules
+    interval: 30s
+    rules:
+      - record: devnet:cpu_usage_percent
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+      
+      - record: devnet:memory_usage_percent
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+      
+      - record: devnet:disk_usage_percent
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100
+
+# Alerting rules for devnet testing
+alerting_rules:
+  - name: devnet_webhook_alerts
+    rules:
+      - alert: DevnetWebhookHighLatency
+        expr: devnet:webhook_latency_p95 > 0.1  # 100ms
+        for: 1m
+        labels:
+          severity: warning
+          environment: devnet
+        annotations:
+          summary: "High webhook latency detected in devnet"
+          description: "Webhook processing latency is {{ $value }}s"
+
+      - alert: DevnetWebhookLowSuccessRate
+        expr: devnet:webhook_success_rate < 0.95  # 95%
+        for: 2m
+        labels:
+          severity: warning
+          environment: devnet
+        annotations:
+          summary: "Low webhook success rate in devnet"
+          description: "Webhook success rate is {{ $value | humanizePercentage }}"
+
+  - name: devnet_system_alerts
+    rules:
+      - alert: DevnetHighCPUUsage
+        expr: devnet:cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          environment: devnet
+        annotations:
+          summary: "High CPU usage in devnet"
+          description: "CPU usage is {{ $value }}%"
+
+      - alert: DevnetHighMemoryUsage
+        expr: devnet:memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+          environment: devnet
+        annotations:
+          summary: "High memory usage in devnet"
+          description: "Memory usage is {{ $value }}%"
+
+  - name: devnet_trading_alerts
+    rules:
+      - alert: DevnetNoTradingSignals
+        expr: devnet:trading_signals_rate == 0
+        for: 10m
+        labels:
+          severity: info
+          environment: devnet
+        annotations:
+          summary: "No trading signals generated in devnet"
+          description: "No trading signals have been generated for 10 minutes"
+
+      - alert: DevnetHighRiskIndicators
+        expr: devnet:risk_indicators_rate > 10
+        for: 5m
+        labels:
+          severity: warning
+          environment: devnet
+        annotations:
+          summary: "High number of risk indicators in devnet"
+          description: "Risk indicators rate is {{ $value }} per second"
+
+# Remote write configuration (optional - for external monitoring)
+remote_write:
+  - url: "http://localhost:9090/api/v1/write"
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'devnet:.*'
+        target_label: __tmp_devnet_metric
+        replacement: 'true'
+
+# Storage configuration for devnet (shorter retention)
+storage:
+  tsdb:
+    retention_time: 7d  # 7 days retention for devnet
+    retention_size: 1GB
+    wal_compression: true

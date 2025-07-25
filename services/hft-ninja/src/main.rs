@@ -7,7 +7,7 @@ use anyhow::Result;
 use axum::{
     extract::State,
     http::StatusCode,
-    response::Json,
+    response::{Json, IntoResponse},
     routing::{get, post},
     Router,
 };
@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
     let kestra_trigger_url = std::env::var("KESTRA_TRIGGER_URL")
         .unwrap_or_else(|_| "http://kestra:8080/api/v1/executions/trigger".to_string());
     let cerebro_bff_url = std::env::var("CEREBRO_BFF_URL")
-        .unwrap_or_else(|_| "http://cerebro-bff:3000".to_string());
+        .unwrap_or_else(|_| "http://cerebro-bff:8080".to_string());
 
     let webhook_state = WebhookState {
         helius_auth_token,
@@ -150,6 +150,7 @@ async fn main() -> Result<()> {
         cerebro_bff_url,
         metrics: Arc::new(WebhookMetrics::default()),
         rate_limiter: Arc::new(tokio::sync::RwLock::new(RateLimiter::new(100))), // 100 req/min
+        sniper_engine: hft_ninja::SniperProfileEngine::new(),
     };
 
     info!("✅ Webhook handler zainicjalizowany");
@@ -178,6 +179,7 @@ async fn main() -> Result<()> {
         .route("/webhooks/helius", post(handle_helius_webhook_wrapper))
         .route("/webhooks/metrics", get(get_webhook_metrics_wrapper))
         .route("/metrics", get(metrics::export_metrics))
+        .route("/test/sniper", get(test_sniper_engine))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
@@ -425,4 +427,62 @@ async fn get_webhook_metrics_wrapper(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     get_webhook_metrics(State(state.webhook_state)).await
+}
+
+// Dodaj test endpoint
+async fn test_sniper_engine(State(state): State<AppState>) -> impl IntoResponse {
+    let test_tokens = vec![
+        serde_json::json!({
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "volume_usd": 15000.0,
+            "liquidity_usd": 25000.0,
+            "price_change_24h_percent": 12.5,
+            "transaction_count_24h": 150.0,
+            "created_at": "2024-01-15T10:00:00Z"
+        }),
+        serde_json::json!({
+            "mint": "So11111111111111111111111111111111111111112",
+            "volume_usd": 500.0,  // Too low
+            "liquidity_usd": 2000.0,  // Too low
+            "price_change_24h_percent": 5.0,
+            "transaction_count_24h": 25.0,
+            "created_at": "2024-01-10T10:00:00Z"
+        }),
+        serde_json::json!({
+            "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+            "volume_usd": 75000.0,  // High volume
+            "liquidity_usd": 120000.0,  // High liquidity
+            "price_change_24h_percent": 25.0,  // Strong momentum
+            "transaction_count_24h": 500.0,
+            "created_at": "2024-01-15T08:00:00Z"  // Recent
+        })
+    ];
+
+    let mut results = Vec::new();
+    
+    for token in test_tokens {
+        let result = match state.webhook_state.sniper_engine.analyze_token(&token) {
+            Some(profile) => serde_json::json!({
+                "mint": token["mint"],
+                "status": "passed",
+                "profile": profile
+            }),
+            None => serde_json::json!({
+                "mint": token["mint"],
+                "status": "filtered_out"
+            })
+        };
+        results.push(result);
+    }
+
+    let (processed, passed, pass_rate) = state.webhook_state.sniper_engine.get_stats();
+
+    Json(serde_json::json!({
+        "test_results": results,
+        "engine_stats": {
+            "tokens_processed": processed,
+            "tokens_passed": passed,
+            "pass_rate": format!("{:.1}%", pass_rate * 100.0)
+        }
+    }))
 }

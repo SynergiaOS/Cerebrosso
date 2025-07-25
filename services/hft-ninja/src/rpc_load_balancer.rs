@@ -33,7 +33,7 @@ pub enum RpcTier {
 }
 
 /// 📊 RPC endpoint statistics
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RpcStats {
     pub total_requests: u64,
     pub successful_requests: u64,
@@ -42,6 +42,20 @@ pub struct RpcStats {
     pub last_request_time: Option<Instant>,
     pub requests_this_minute: u32,
     pub minute_window_start: Instant,
+}
+
+impl Default for RpcStats {
+    fn default() -> Self {
+        Self {
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            avg_response_time_ms: 0.0,
+            last_request_time: None,
+            requests_this_minute: 0,
+            minute_window_start: Instant::now(),
+        }
+    }
 }
 
 /// 🎯 Load balancing strategy
@@ -181,7 +195,7 @@ impl RpcLoadBalancer {
         // Sort by score (lowest first)
         scored_endpoints.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         
-        Ok(scored_endpoints[0].0.clone())
+        Ok(scored_endpoints[0].0.clone().clone())
     }
 
     /// 🔄 Get round-robin endpoint

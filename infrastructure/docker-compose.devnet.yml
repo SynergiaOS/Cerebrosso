@@ -1,0 +1,286 @@
+# 🧪 Cerberus Phoenix v2.0 - Devnet Testing Configuration
+# Optimized for Solana Devnet testing with enhanced logging and monitoring
+
+version: '3.8'
+
+networks:
+  cerberus-devnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+
+volumes:
+  qdrant_devnet_data:
+  kestra_devnet_data:
+  prometheus_devnet_data:
+  grafana_devnet_data:
+  postgres_devnet_data:
+  vault_devnet_data:
+
+services:
+  # 🧠 Qdrant - Vector Database (Devnet)
+  qdrant-devnet:
+    image: qdrant/qdrant:v1.7.4
+    container_name: cerberus-qdrant-devnet
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
+    volumes:
+      - qdrant_devnet_data:/qdrant/storage
+    networks:
+      - cerberus-devnet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qdrant-devnet.rule=Host(`qdrant-devnet.localhost`)"
+
+  # 🗄️ PostgreSQL - Database (Devnet)
+  postgres-devnet:
+    image: postgres:15-alpine
+    container_name: cerberus-postgres-devnet
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: kestra_devnet
+      POSTGRES_DB: kestra_devnet
+    volumes:
+      - postgres_devnet_data:/var/lib/postgresql/data
+    networks:
+      - cerberus-devnet
+
+  # 🔐 HashiCorp Vault - Secrets (Devnet)
+  vault-devnet:
+    image: hashicorp/vault:1.15
+    container_name: cerberus-vault-devnet
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_API_ADDR: http://0.0.0.0:8200
+      VAULT_LOCAL_CONFIG: |
+        ui = true
+        storage "file" {
+          path = "/vault/data"
+        }
+        listener "tcp" {
+          address = "0.0.0.0:8200"
+          tls_disable = 1
+        }
+        disable_mlock = true
+        default_lease_ttl = "300s"
+        max_lease_ttl = "300s"
+    volumes:
+      - vault_devnet_data:/vault/data
+    networks:
+      - cerberus-devnet
+
+  # 📊 Prometheus - Metrics (Devnet)
+  prometheus-devnet:
+    image: prom/prometheus:latest
+    container_name: cerberus-prometheus-devnet
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'  # Shorter retention for devnet
+      - '--web.enable-lifecycle'
+    volumes:
+      - prometheus_devnet_data:/prometheus
+      - ./prometheus/prometheus.devnet.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - cerberus-devnet
+
+  # 📈 Grafana - Monitoring (Devnet)
+  grafana-devnet:
+    image: grafana/grafana:latest
+    container_name: cerberus-grafana-devnet
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: devnet_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/devnet-overview.json
+    volumes:
+      - grafana_devnet_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - cerberus-devnet
+
+  # 🔄 Kestra - Workflow Orchestration (Devnet)
+  kestra-devnet:
+    image: kestra/kestra:latest
+    container_name: cerberus-kestra-devnet
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres-devnet:5432/kestra_devnet
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: kestra_devnet
+        kestra:
+          server:
+            basic-auth:
+              enabled: false
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: "/app/storage"
+    volumes:
+      - kestra_devnet_data:/app/storage
+      - ./kestra/flows:/app/flows
+    networks:
+      - cerberus-devnet
+    depends_on:
+      - postgres-devnet
+
+  # 🥷 HFT-Ninja - Core Execution Engine (Devnet)
+  hft-ninja-devnet:
+    build:
+      context: ../services/hft-ninja
+      dockerfile: Dockerfile
+    container_name: cerberus-hft-ninja-devnet
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      RUST_LOG: debug  # Enhanced logging for devnet
+      SOLANA_RPC_URL: https://api.devnet.solana.com
+      SOLANA_WS_URL: wss://api.devnet.solana.com
+      SOLANA_COMMITMENT: confirmed
+      SOLANA_NETWORK: devnet
+      JITO_BLOCK_ENGINE_URL: https://mainnet.block-engine.jito.wtf
+      CEREBRO_BFF_URL: http://cerebro-bff-devnet:8080
+      HELIUS_AUTH_TOKEN: ${HELIUS_AUTH_TOKEN:-devnet_test_token}
+      KESTRA_TRIGGER_URL: http://kestra-devnet:8080/api/v1/executions/trigger/helius-webhook
+      WEBHOOK_RATE_LIMIT: 1000  # Higher limit for testing
+      DEVNET_TESTING: "true"
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./test-wallet.json:/app/test-wallet.json:ro
+    networks:
+      - cerberus-devnet
+    depends_on:
+      - cerebro-bff-devnet
+      - kestra-devnet
+
+  # 🧠 Cerebro-BFF - AI Logic & API Backend (Devnet)
+  cerebro-bff-devnet:
+    build:
+      context: ../services/cerebro-bff
+      dockerfile: Dockerfile
+    container_name: cerberus-cerebro-bff-devnet
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      RUST_LOG: debug  # Enhanced logging for devnet
+      QDRANT_URL: http://qdrant-devnet:6333
+      QDRANT_COLLECTION: cerberus_devnet_context
+      SOLANA_RPC_URL: https://api.devnet.solana.com
+      SOLANA_NETWORK: devnet
+      HELIUS_API_KEY: ${HELIUS_API_KEY:-demo_key}
+      FINLLAMA_API_URL: http://finllama-devnet:11434
+      DEEPSEEK_API_URL: http://deepseek-devnet:11434
+      DEVNET_TESTING: "true"
+      API_RATE_LIMIT_MULTIPLIER: 10  # Relaxed limits for testing
+    volumes:
+      - ./secrets:/app/secrets:ro
+    networks:
+      - cerberus-devnet
+    depends_on:
+      - qdrant-devnet
+
+  # 🤖 FinLlama - Financial AI Model (Devnet)
+  finllama-devnet:
+    image: ollama/ollama:latest
+    container_name: cerberus-finllama-devnet
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_MODELS: /root/.ollama/models
+    volumes:
+      - ./ollama/finllama:/root/.ollama
+    networks:
+      - cerberus-devnet
+
+  # 🧠 DeepSeek - Code Analysis AI (Devnet)
+  deepseek-devnet:
+    image: ollama/ollama:latest
+    container_name: cerberus-deepseek-devnet
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_MODELS: /root/.ollama/models
+    volumes:
+      - ./ollama/deepseek:/root/.ollama
+    networks:
+      - cerberus-devnet
+
+  # 📱 Dashboard - Frontend (Devnet)
+  dashboard-devnet:
+    build:
+      context: ../services/dashboard
+      dockerfile: Dockerfile
+    container_name: cerberus-dashboard-devnet
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://cerebro-bff-devnet:8080
+      NEXT_PUBLIC_NINJA_URL: http://hft-ninja-devnet:8080
+      NEXT_PUBLIC_NETWORK: devnet
+      NEXT_PUBLIC_DEVNET_MODE: "true"
+    networks:
+      - cerberus-devnet
+    depends_on:
+      - cerebro-bff-devnet
+      - hft-ninja-devnet
+
+  # 🔍 Devnet Monitor - Custom monitoring for devnet testing
+  devnet-monitor:
+    image: alpine:latest
+    container_name: cerberus-devnet-monitor
+    restart: unless-stopped
+    command: |
+      sh -c "
+        apk add --no-cache curl jq &&
+        while true; do
+          echo '🧪 Devnet Health Check - $(date)'
+          curl -s http://hft-ninja-devnet:8080/health | jq '.' || echo 'HFT-Ninja not ready'
+          curl -s http://cerebro-bff-devnet:8080/health | jq '.' || echo 'Cerebro-BFF not ready'
+          echo '---'
+          sleep 60
+        done
+      "
+    networks:
+      - cerberus-devnet
+    depends_on:
+      - hft-ninja-devnet
+      - cerebro-bff-devnet

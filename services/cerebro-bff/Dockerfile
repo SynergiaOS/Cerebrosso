@@ -22,8 +22,9 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs
 # 📦 Build dependencies (this layer will be cached)
 RUN cargo build --release && rm -rf src
 
-# 📁 Copy source code
+# 📁 Copy source code and migrations
 COPY src ./src
+COPY migrations ./migrations
 
 # 🏗️ Build the application
 RUN cargo build --release

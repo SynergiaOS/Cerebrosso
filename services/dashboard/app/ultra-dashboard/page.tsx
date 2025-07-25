@@ -47,9 +47,9 @@ export default function UltraDashboard() {
     responseTime: 127,
     successRate: 100,
     providers: {
-      alchemy: { status: 'healthy', usage: 45, responseTime: 127 },
-      helius: { status: 'healthy', usage: 30, responseTime: 156 },
-      public: { status: 'healthy', usage: 25, responseTime: 216 }
+      alchemy: { status: 'healthy' as const, usage: 45, responseTime: 127 },
+      helius: { status: 'healthy' as const, usage: 30, responseTime: 156 },
+      public: { status: 'healthy' as const, usage: 25, responseTime: 216 }
     }
   })
 

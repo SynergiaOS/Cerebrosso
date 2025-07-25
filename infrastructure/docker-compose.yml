@@ -103,19 +103,26 @@ services:
       - "traefik.http.routers.kestra.rule=Host(`kestra.localhost`)"
       - "traefik.http.services.kestra.loadbalancer.server.port=8080"
 
-  # 🗄️ PostgreSQL - Database for Kestra
+  # 🗄️ PostgreSQL - Database for Kestra & Cerebro-BFF
   postgres:
     image: postgres:15-alpine
     container_name: cerberus-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: kestra
-      POSTGRES_USER: kestra
-      POSTGRES_PASSWORD: kestra
+      POSTGRES_USER: ${POSTGRES_USER:-kestra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kestra}
+      POSTGRES_MULTIPLE_DATABASES: kestra,cerberus_phoenix
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
     networks:
       - cerberus-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kestra"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # 🔐 HashiCorp Vault - Secret Management
   vault:
@@ -208,11 +215,13 @@ services:
       - "8090:8080"
     environment:
       RUST_LOG: info
-      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
-      JITO_BLOCK_ENGINE_URL: ${JITO_BLOCK_ENGINE_URL:-https://mainnet.block-engine.jito.wtf}
-      CEREBRO_BFF_URL: http://cerebro-bff:8080
-      HELIUS_AUTH_TOKEN: ${HELIUS_AUTH_TOKEN:-default_token}
-      KESTRA_TRIGGER_URL: ${KESTRA_TRIGGER_URL:-http://kestra:8080/api/v1/executions/trigger}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL}
+      JITO_BLOCK_ENGINE_URL: ${JITO_BLOCK_ENGINE_URL}
+      CEREBRO_BFF_URL: ${CEREBRO_BFF_URL}
+      HELIUS_API_KEY: ${HELIUS_API_KEY}
+      QUICKNODE_RPC_URL: ${QUICKNODE_RPC_URL}
+      QUICKNODE_API_KEY: ${QUICKNODE_API_KEY}
+      KESTRA_TRIGGER_URL: ${KESTRA_API_URL}/api/v1/executions/trigger
     volumes:
       - ./secrets:/app/secrets:ro
     networks:
@@ -236,14 +245,26 @@ services:
     environment:
       RUST_LOG: info
       QDRANT_URL: http://qdrant:6333
-      FINLLAMA_API_URL: ${FINLLAMA_API_URL:-http://localhost:11434}
-      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-http://localhost:11435}
+      HELIUS_API_KEY: ${HELIUS_API_KEY}
+      HELIUS_BASE_URL: ${HELIUS_BASE_URL:-https://api.helius.xyz}
+      QUICKNODE_RPC_URL: ${QUICKNODE_RPC_URL}
+      QUICKNODE_API_KEY: ${QUICKNODE_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      VAULT_ADDR: ${VAULT_ADDR}
+      VAULT_TOKEN: ${VAULT_TOKEN}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL}
+      JITO_BLOCK_ENGINE_URL: ${JITO_BLOCK_ENGINE_URL}
+      FINLLAMA_API_URL: ${FINLLAMA_API_URL:-http://finllama:11434}
+      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-http://deepseek:11434}
     volumes:
       - ./secrets:/app/secrets:ro
     networks:
       - cerberus-net
     depends_on:
       - qdrant
+      - postgres
+      - vault
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.cerebro-bff.rule=Host(`cerebro.localhost`)"

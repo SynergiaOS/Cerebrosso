@@ -17,6 +17,7 @@ use std::sync::Arc;
 use tracing::{error, info, warn, debug};
 use tokio::time::{Duration, Instant};
 use std::collections::HashMap;
+use hft_ninja::{SniperProfileEngine, TokenProfile};
 
 // --- Enhanced Helius Webhook Structures ---
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -106,6 +107,7 @@ pub struct WebhookState {
     pub cerebro_bff_url: String,
     pub metrics: Arc<WebhookMetrics>,
     pub rate_limiter: Arc<tokio::sync::RwLock<RateLimiter>>,
+    pub sniper_engine: SniperProfileEngine,
 }
 
 // --- Metrics Collection ---
@@ -117,6 +119,10 @@ pub struct WebhookMetrics {
     pub kestra_triggers: std::sync::atomic::AtomicU64,
     pub cerebro_notifications: std::sync::atomic::AtomicU64,
     pub avg_processing_time_ms: std::sync::atomic::AtomicU64,
+    // SniperEngine metrics
+    pub sniper_tokens_analyzed: std::sync::atomic::AtomicU64,
+    pub sniper_tokens_passed: std::sync::atomic::AtomicU64,
+    pub sniper_tokens_filtered: std::sync::atomic::AtomicU64,
 }
 
 // --- Rate Limiting ---
@@ -200,19 +206,53 @@ pub async fn handle_helius_webhook(
         return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     }
 
-    // 3. Enhanced event processing and filtering
+    // 3. Enhanced event processing and filtering with SniperProfileEngine
     let processed_events = process_and_filter_events(&payload).await;
-    
-    if processed_events.is_empty() {
+
+    // 3.1. Run SniperProfileEngine analysis on relevant tokens
+    let mut sniper_results = Vec::new();
+    for event in &processed_events {
+        if let Some(token_mint) = &event.token_mint {
+            // Transform Helius data to SniperEngine format
+            let token_data = transform_helius_to_sniper_format(event, &payload);
+
+            // Update metrics
+            state.metrics.sniper_tokens_analyzed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            // Analyze with SniperProfileEngine
+            if let Some(profile) = state.sniper_engine.analyze_token(&token_data) {
+                info!("🎯 SniperEngine PASSED: {} (score: {:.2}, risk: {:?})",
+                      token_mint, profile.score, profile.risk_level);
+                sniper_results.push((token_mint.clone(), profile));
+                state.metrics.sniper_tokens_passed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            } else {
+                debug!("❌ SniperEngine FILTERED: {}", token_mint);
+                state.metrics.sniper_tokens_filtered.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+    }
+
+    if processed_events.is_empty() && sniper_results.is_empty() {
         debug!("No relevant events found in webhook payload");
         return StatusCode::OK.into_response();
     }
-    
-    info!("🎯 Processing {} relevant events", processed_events.len());
 
-    // 4. Parallel processing: Kestra + Cerebro-BFF
+    info!("🎯 Processing {} relevant events, {} passed sniper filter",
+          processed_events.len(), sniper_results.len());
+
+    // 4. Parallel processing: Kestra + Cerebro-BFF (only for sniper-approved tokens)
     let kestra_future = trigger_kestra_workflow(&state.kestra_trigger_url, &payload);
-    let cerebro_future = notify_cerebro_bff(&state.cerebro_bff_url, &processed_events);
+
+    // Filter events to only include sniper-approved tokens
+    let approved_events: Vec<_> = processed_events.into_iter()
+        .filter(|event| {
+            event.token_mint.as_ref()
+                .map(|mint| sniper_results.iter().any(|(approved_mint, _)| approved_mint == mint))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    let cerebro_future = notify_cerebro_bff(&state.cerebro_bff_url, &approved_events);
     
     let (kestra_result, cerebro_result) = tokio::join!(kestra_future, cerebro_future);
 
@@ -232,8 +272,12 @@ pub async fn handle_helius_webhook(
     
     match cerebro_result {
         Ok(_) => {
-            info!("✅ Successfully notified Cerebro-BFF");
-            state.metrics.cerebro_notifications.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if !approved_events.is_empty() {
+                info!("✅ Successfully notified Cerebro-BFF about {} approved tokens", approved_events.len());
+                state.metrics.cerebro_notifications.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            } else {
+                debug!("ℹ️ No approved tokens to send to Cerebro-BFF");
+            }
         }
         Err(e) => {
             error!("❌ Failed to notify Cerebro-BFF: {}", e);
@@ -317,6 +361,74 @@ pub struct RiskIndicator {
     pub risk_type: String,
     pub severity: f64,
     pub description: String,
+}
+
+// --- Data Transformation for SniperProfileEngine ---
+fn transform_helius_to_sniper_format(
+    event: &ProcessedEvent,
+    payload: &HeliusWebhookPayload
+) -> serde_json::Value {
+    let mut token_data = serde_json::Map::new();
+
+    // Basic token info
+    if let Some(mint) = &event.token_mint {
+        token_data.insert("mint".to_string(), serde_json::Value::String(mint.clone()));
+    }
+
+    // Extract volume from token transfers
+    let mut total_volume_usd = 0.0_f64;
+    let mut transfer_count = 0_u32;
+    let mut max_transfer_amount = 0.0_f64;
+
+    for helius_event in &payload.events {
+        if let Some(token_transfers) = &helius_event.token_transfers {
+            for transfer in token_transfers {
+                if Some(&transfer.mint) == event.token_mint.as_ref() {
+                    // Estimate USD value (simplified - in real implementation would use price feeds)
+                    let estimated_usd = transfer.token_amount * 0.1; // Placeholder conversion
+                    total_volume_usd += estimated_usd;
+                    transfer_count += 1;
+                    max_transfer_amount = max_transfer_amount.max(transfer.token_amount);
+                }
+            }
+        }
+    }
+
+    // Add calculated metrics
+    token_data.insert("volume_usd".to_string(), serde_json::Value::Number(
+        serde_json::Number::from_f64(total_volume_usd).unwrap_or(serde_json::Number::from(0))
+    ));
+    token_data.insert("transaction_count".to_string(), serde_json::Value::Number(
+        serde_json::Number::from(transfer_count)
+    ));
+    token_data.insert("max_transfer_amount".to_string(), serde_json::Value::Number(
+        serde_json::Number::from_f64(max_transfer_amount).unwrap_or(serde_json::Number::from(0))
+    ));
+
+    // Estimate liquidity (simplified)
+    let estimated_liquidity = total_volume_usd * 10.0; // Rough estimate
+    token_data.insert("liquidity_usd".to_string(), serde_json::Value::Number(
+        serde_json::Number::from_f64(estimated_liquidity).unwrap_or(serde_json::Number::from(0))
+    ));
+
+    // Add timestamp and other metadata
+    token_data.insert("timestamp".to_string(), serde_json::Value::Number(
+        serde_json::Number::from(event.timestamp)
+    ));
+    token_data.insert("transaction_signature".to_string(),
+        serde_json::Value::String(event.transaction_signature.clone()));
+
+    // Add risk indicators from processed event
+    let risk_indicators: Vec<serde_json::Value> = event.risk_indicators.iter()
+        .map(|r| serde_json::json!({
+            "type": r.risk_type,
+            "severity": r.severity,
+            "description": r.description
+        }))
+        .collect();
+    token_data.insert("risk_indicators".to_string(), serde_json::Value::Array(risk_indicators));
+
+    serde_json::Value::Object(token_data)
 }
 
 async fn extract_trading_signals(event: &HeliusEvent) -> Option<ProcessedEvent> {
@@ -405,10 +517,36 @@ async fn notify_cerebro_bff(
         .await
 }
 
+async fn notify_cerebro_bff_with_profiles(
+    cerebro_url: &str,
+    profiles: &[TokenProfile],
+) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client::new();
+    client
+        .post(format!("{}/api/v1/analyze/tokens", cerebro_url))
+        .timeout(Duration::from_secs(5))
+        .json(&serde_json::json!({
+            "token_profiles": profiles,
+            "source": "sniper_engine",
+            "timestamp": chrono::Utc::now().timestamp()
+        }))
+        .send()
+        .await
+}
+
 // --- Metrics Endpoint ---
 pub async fn get_webhook_metrics(State(state): State<WebhookState>) -> impl IntoResponse {
     let metrics = &state.metrics;
     
+    let sniper_analyzed = metrics.sniper_tokens_analyzed.load(std::sync::atomic::Ordering::Relaxed);
+    let sniper_passed = metrics.sniper_tokens_passed.load(std::sync::atomic::Ordering::Relaxed);
+    let sniper_filtered = metrics.sniper_tokens_filtered.load(std::sync::atomic::Ordering::Relaxed);
+    let sniper_pass_rate = if sniper_analyzed > 0 {
+        (sniper_passed as f64 / sniper_analyzed as f64) * 100.0
+    } else {
+        0.0
+    };
+
     let response = serde_json::json!({
         "webhook_metrics": {
             "total_received": metrics.total_webhooks_received.load(std::sync::atomic::Ordering::Relaxed),
@@ -417,6 +555,12 @@ pub async fn get_webhook_metrics(State(state): State<WebhookState>) -> impl Into
             "kestra_triggers": metrics.kestra_triggers.load(std::sync::atomic::Ordering::Relaxed),
             "cerebro_notifications": metrics.cerebro_notifications.load(std::sync::atomic::Ordering::Relaxed),
             "avg_processing_time_ms": metrics.avg_processing_time_ms.load(std::sync::atomic::Ordering::Relaxed),
+        },
+        "sniper_engine_metrics": {
+            "tokens_analyzed": sniper_analyzed,
+            "tokens_passed": sniper_passed,
+            "tokens_filtered": sniper_filtered,
+            "pass_rate_percent": format!("{:.1}", sniper_pass_rate),
         },
         "timestamp": chrono::Utc::now().to_rfc3339()
     });

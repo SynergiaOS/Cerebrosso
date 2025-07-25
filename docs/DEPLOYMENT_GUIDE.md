@@ -65,11 +65,21 @@ chmod +x scripts/deploy-production.sh
 ./scripts/deploy-production.sh
 ```
 
-### 5. Setup Webhooks
+### 5. Setup Helius Webhook Integration
 ```bash
-# Configure Helius webhooks
+# Configure Helius webhooks for real-time token events
 ./scripts/setup-helius-webhooks.py
+
+# Test webhook integration
+./scripts/test-helius-webhook.sh
 ```
+
+**Webhook Configuration:**
+- **Endpoint**: `https://your-domain.com/webhooks/helius`
+- **Authentication**: Bearer token from `HELIUS_AUTH_TOKEN`
+- **Events**: Token transfers, account changes, program interactions
+- **Rate Limit**: 100 requests/minute
+- **Processing**: <10ms average latency
 
 ---
 
