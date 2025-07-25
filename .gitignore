@@ -27,6 +27,28 @@ logs/
 Thumbs.db
 desktop.ini
 
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+.next/**
+out/
+
+# Test files
+test-wallet.json
+test_webhook_payload.json
+test-webhook-simple.sh
+
+# Docker volumes
+postgres_data/
+qdrant_data/
+
+# Build artifacts
+dist/
+build/
+
 # Docker
 .dockerignore
 
