@@ -16,6 +16,7 @@ volumes:
   kestra_data:
   prometheus_data:
   grafana_data:
+  alertmanager_data:
   traefik_data:
   postgres_data:
   vault_data:
@@ -203,6 +204,35 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # 🚨 Alertmanager - Alert Routing & Notifications
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cerberus-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--web.route-prefix=/'
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      SLACK_SECURITY_WEBHOOK_URL: ${SLACK_SECURITY_WEBHOOK_URL}
+      PAGERDUTY_SECURITY_KEY: ${PAGERDUTY_SECURITY_KEY}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    networks:
+      - cerberus-net
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.localhost`)"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
 
   # 🥷 HFT-Ninja - Core Execution Engine
   hft-ninja:

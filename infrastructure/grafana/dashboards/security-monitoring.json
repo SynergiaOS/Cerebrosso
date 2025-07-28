@@ -1,0 +1,160 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🛡️ Cerberus Phoenix - Security Monitoring",
+    "tags": ["cerberus", "security", "monitoring"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "🚨 Security Alert Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(security_alerts_total[5m]))",
+            "legendFormat": "Alerts/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.1},
+                {"color": "red", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "🔐 Secret Access Monitoring",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(vault_secret_access_total[5m])",
+            "legendFormat": "{{status}} - {{source_ip}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "🌐 Network Security Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "rate(traefik_requests_total[5m])",
+            "legendFormat": "{{service}} - {{code}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "🔍 Threat Detection Timeline",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "increase(threat_detection_alerts_total[1h])",
+            "legendFormat": "{{type}} threats"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "🛡️ Container Security Violations",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(container_security_violations_total)",
+            "legendFormat": "Total Violations"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "📊 Compliance Status",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "compliance_status_total",
+            "legendFormat": "{{standard}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "🔐 Cryptographic Operations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_operations_total[5m])",
+            "legendFormat": "{{operation_type}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "🚨 Active Security Incidents",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "security_incidents_active",
+            "legendFormat": "{{incident_id}} - {{severity}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "links": [
+      {
+        "title": "Security Alerts",
+        "url": "http://localhost:9093",
+        "type": "link"
+      },
+      {
+        "title": "Vault UI",
+        "url": "http://localhost:8200",
+        "type": "link"
+      }
+    ]
+  }
+}

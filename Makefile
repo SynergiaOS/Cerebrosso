@@ -1,7 +1,7 @@
 # 🐺 Projekt Cerberus Phoenix v2.0 - DevKit
 # Centralny panel sterowania dla całego ekosystemu
 
-.PHONY: help dev dev-setup build deploy-cloud phoenix-restart clean test lint docs
+.PHONY: help dev dev-setup build deploy-cloud phoenix-restart clean test lint docs prod-setup prod-deploy prod-status prod-logs prod-stop security-full
 
 # Kolory dla lepszej czytelności
 RED=\033[0;31m
@@ -150,6 +150,59 @@ security-scan: ## 🔐 Skanowanie bezpieczeństwa
 	cd services/cerebro-bff && cargo audit
 	cd services/dashboard && npm audit
 	@echo "$(GREEN)✅ Skanowanie zakończone!$(NC)"
+
+security-full: ## 🛡️ Pełne skanowanie bezpieczeństwa
+	@echo "$(BLUE)🛡️ Pełne skanowanie bezpieczeństwa...$(NC)"
+	./scripts/snyk-scan.sh
+	./scripts/generate-sbom.sh
+	./scripts/build-chainguard.sh --no-sbom
+	@echo "$(GREEN)✅ Pełne skanowanie zakończone!$(NC)"
+
+# 🚀 PRODUCTION DEPLOYMENT
+prod-setup: ## 🏭 Przygotuj środowisko produkcyjne
+	@echo "$(BLUE)🏭 Przygotowywanie środowiska produkcyjnego...$(NC)"
+	./scripts/infisical-sync.sh export
+	docker-compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.chainguard.yml pull
+	@echo "$(GREEN)✅ Środowisko produkcyjne gotowe!$(NC)"
+
+prod-deploy: ## 🚀 Deploy produkcyjny z pełnym monitoringiem
+	@echo "$(BLUE)🚀 Uruchamianie Cerberus Phoenix v2.0 PRODUCTION...$(NC)"
+	@echo "$(YELLOW)📊 Uruchamianie infrastruktury monitoringu...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml up -d prometheus grafana alertmanager vault qdrant postgres
+	@sleep 10
+	@echo "$(YELLOW)🐺 Uruchamianie HFT-Ninja...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml up -d hft-ninja
+	@sleep 5
+	@echo "$(YELLOW)🧠 Uruchamianie Cerebro-BFF...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml up -d cerebro-bff
+	@sleep 5
+	@echo "$(YELLOW)🚪 Uruchamianie Traefik Gateway...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml up -d traefik
+	@echo "$(GREEN)🎉 Cerberus Phoenix v2.0 PRODUCTION READY!$(NC)"
+	@echo "$(CYAN)📊 Grafana: http://localhost:3001$(NC)"
+	@echo "$(CYAN)🔍 Prometheus: http://localhost:9090$(NC)"
+	@echo "$(CYAN)🚨 Alertmanager: http://localhost:9093$(NC)"
+	@echo "$(CYAN)🐺 HFT-Ninja: http://localhost:8090$(NC)"
+	@echo "$(CYAN)🧠 Cerebro-BFF: http://localhost:8081$(NC)"
+
+prod-status: ## 📊 Status systemu produkcyjnego
+	@echo "$(BLUE)📊 Status Cerberus Phoenix v2.0...$(NC)"
+	@echo "$(YELLOW)🔍 Sprawdzanie serwisów...$(NC)"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep cerberus || echo "$(RED)❌ Brak uruchomionych serwisów$(NC)"
+	@echo "$(YELLOW)🏥 Health checks...$(NC)"
+	@curl -s http://localhost:8090/health > /dev/null && echo "$(GREEN)✅ HFT-Ninja: OK$(NC)" || echo "$(RED)❌ HFT-Ninja: DOWN$(NC)"
+	@curl -s http://localhost:8081/health > /dev/null && echo "$(GREEN)✅ Cerebro-BFF: OK$(NC)" || echo "$(RED)❌ Cerebro-BFF: DOWN$(NC)"
+	@curl -s http://localhost:9090/-/healthy > /dev/null && echo "$(GREEN)✅ Prometheus: OK$(NC)" || echo "$(RED)❌ Prometheus: DOWN$(NC)"
+	@curl -s http://localhost:3001/api/health > /dev/null && echo "$(GREEN)✅ Grafana: OK$(NC)" || echo "$(RED)❌ Grafana: DOWN$(NC)"
+
+prod-logs: ## 📋 Logi systemu produkcyjnego
+	@echo "$(BLUE)📋 Logi Cerberus Phoenix v2.0...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml logs -f --tail=50
+
+prod-stop: ## 🛑 Zatrzymaj system produkcyjny
+	@echo "$(BLUE)🛑 Zatrzymywanie Cerberus Phoenix v2.0...$(NC)"
+	docker-compose -f infrastructure/docker-compose.yml down
+	@echo "$(GREEN)✅ System zatrzymany!$(NC)"
 
 infisical-setup: ## 🔐 Konfiguruj Infisical secrets
 	@echo "$(BLUE)🔐 Konfigurowanie Infisical...$(NC)"

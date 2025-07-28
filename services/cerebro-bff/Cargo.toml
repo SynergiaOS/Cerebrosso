@@ -43,7 +43,7 @@ async-openai = { version = "0.17", optional = true }
 tiktoken-rs = { version = "0.5", optional = true }
 
 # 📊 Metrics & Monitoring
-prometheus = { version = "0.13", optional = true }
+prometheus = { version = "0.14", optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optional = true }
 tracing-opentelemetry = { version = "0.22", optional = true }
@@ -63,7 +63,7 @@ config = "0.14"
 dotenvy = "0.15"
 
 # 🗄️ Database & Storage
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate"] }
+sqlx = { version = "0.8.1", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate"] }
 
 # 🔐 Security & Crypto
 sha2 = "0.10"

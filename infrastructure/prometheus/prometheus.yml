@@ -63,7 +63,8 @@ scrape_configs:
 
 # 🚨 Alerting Rules
 rule_files:
-  - "alert_rules.yml"
+  - "alerts/cerberus-alerts.yml"
+  - "alerts/security-alerts.yml"
 
 # 🔔 Alertmanager Configuration
 alerting:
@@ -72,8 +73,4 @@ alerting:
         - targets:
           - alertmanager:9093
 
-# 🗄️ Storage Configuration
-storage:
-  tsdb:
-    retention.time: 30d
-    retention.size: 10GB
+# 🗄️ Storage Configuration (configured via command line args)

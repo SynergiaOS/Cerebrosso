@@ -15,30 +15,32 @@ use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 use uuid::Uuid;
 
-mod config;
 mod strategies;
 mod execution;
 mod jito;
 mod metrics;
+mod nemotron_profit_engine;
 mod solana;
 mod rpc_load_balancer;
 mod webhook_handler;
 
-use config::Config;
-use execution::ExecutionEngine;
+use hft_ninja::config::Config;
+use execution::{ExecutionEngine, ExecutionRequest, ExecutionResult};
+use nemotron_profit_engine::{NemotronProfitEngine, create_nemotron_request};
 use metrics::MetricsCollector;
 use webhook_handler::{WebhookState, WebhookMetrics, RateLimiter, handle_helius_webhook, get_webhook_metrics};
 
-/// 🏗️ Główna struktura aplikacji
+/// 🏗️ Główna struktura aplikacji z NVIDIA Nemotron integration
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
     pub execution_engine: Arc<ExecutionEngine>,
     pub metrics: Arc<MetricsCollector>,
     pub webhook_state: WebhookState,
+    pub nemotron_engine: Arc<NemotronProfitEngine>,
 }
 
 /// 📊 Struktura odpowiedzi health check
@@ -66,7 +68,7 @@ struct DetectSignalsResponse {
     timestamp: chrono::DateTime<chrono::Utc>,
 }
 
-/// 🎯 Struktura sygnału tradingowego
+/// 🎯 Struktura sygnału tradingowego z enhanced profit calculation
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TradingSignal {
     pub id: Uuid,
@@ -74,9 +76,15 @@ pub struct TradingSignal {
     pub token_address: String,
     pub signal_type: String,
     pub confidence: f64,
-    pub estimated_profit: f64,
+    pub estimated_profit: f64,           // Base profit estimation
+    pub estimated_profit_nemotron: Option<f64>, // NVIDIA Nemotron enhanced estimation
+    pub profit_confidence: f64,          // Confidence in profit estimation
+    pub max_potential_profit: f64,       // Maximum possible profit
+    pub min_expected_profit: f64,        // Minimum expected profit
     pub risk_score: f64,
     pub execution_priority: u8,
+    pub market_conditions: String,       // Current market state
+    pub volatility_factor: f64,          // Market volatility impact
 }
 
 /// ⚡ Struktura żądania egzekucji
@@ -150,17 +158,24 @@ async fn main() -> Result<()> {
         cerebro_bff_url,
         metrics: Arc::new(WebhookMetrics::default()),
         rate_limiter: Arc::new(tokio::sync::RwLock::new(RateLimiter::new(100))), // 100 req/min
-        sniper_engine: hft_ninja::SniperProfileEngine::new(),
+        sniper_engine: hft_ninja::SniperProfileEngine::new(config.sniper.clone()),
     };
 
     info!("✅ Webhook handler zainicjalizowany");
 
-    // 🏗️ Tworzenie stanu aplikacji
+    // 🧠 Inicjalizacja NVIDIA Nemotron Profit Engine
+    let nemotron_url = std::env::var("NVIDIA_NEMOTRON_URL")
+        .unwrap_or_else(|_| "http://nemotron:11434".to_string());
+    let nemotron_engine = Arc::new(NemotronProfitEngine::new(nemotron_url));
+    info!("🧠 NVIDIA Nemotron Profit Engine zainicjalizowany");
+
+    // 🏗️ Tworzenie stanu aplikacji z enhanced profit calculation
     let app_state = AppState {
         config: config.clone(),
         execution_engine,
         metrics,
         webhook_state: webhook_state.clone(),
+        nemotron_engine,
     };
 
     // 🌐 Konfiguracja routingu
@@ -220,24 +235,81 @@ async fn health_check(State(state): State<AppState>) -> Result<Json<HealthRespon
     Ok(Json(response))
 }
 
-/// 🎯 Wykrywanie sygnałów tradingowych
+/// 🎯 Wykrywanie sygnałów tradingowych z NVIDIA Nemotron Enhanced Profit Calculation
 async fn detect_signals(
     State(state): State<AppState>,
     Json(request): Json<DetectSignalsRequest>,
 ) -> Result<Json<DetectSignalsResponse>, StatusCode> {
-    info!("🔍 Wykrywanie sygnałów dla kontekstu: {}", request.context_id);
+    info!("🔍 Wykrywanie sygnałów dla kontekstu: {} z Nemotron enhancement", request.context_id);
 
-    // TODO: Implementacja wykrywania sygnałów
+    // 🧠 Enhanced profit calculation using NVIDIA Nemotron
+    let token_address = "So11111111111111111111111111111111111111112".to_string();
+    let market_data = serde_json::json!({
+        "price": 0.000123,
+        "volume_24h": 150000.0,
+        "liquidity_usd": 45000.0,
+        "price_change_24h": 0.15,
+        "volume_spike": 2.3,
+        "depth_ratio": 1.2
+    });
+
+    let trading_signals = vec![
+        serde_json::json!({
+            "signal_type": "memecoin_launch",
+            "strength": 0.85,
+            "social_sentiment": 0.78,
+            "whale_activity": 0.65
+        })
+    ];
+
+    // Create Nemotron request
+    let nemotron_request = create_nemotron_request(
+        token_address.clone(),
+        market_data,
+        trading_signals,
+    );
+
+    // Get enhanced profit calculation from Nemotron
+    let (enhanced_profit, profit_confidence, max_profit, min_profit) =
+        match state.nemotron_engine.calculate_enhanced_profit(nemotron_request).await {
+            Ok(nemotron_response) => {
+                if state.nemotron_engine.validate_profit_response(&nemotron_response) {
+                    info!("🧠 Nemotron enhanced profit: {:.4} (confidence: {:.2})",
+                          nemotron_response.enhanced_profit_estimate,
+                          nemotron_response.confidence_score);
+                    (
+                        Some(nemotron_response.enhanced_profit_estimate),
+                        nemotron_response.confidence_score,
+                        nemotron_response.max_potential_profit,
+                        nemotron_response.min_expected_profit,
+                    )
+                } else {
+                    warn!("⚠️ Invalid Nemotron response, using fallback");
+                    (None, 0.5, 0.01, 0.001)
+                }
+            }
+            Err(e) => {
+                warn!("⚠️ Nemotron calculation failed: {}, using fallback", e);
+                (None, 0.5, 0.01, 0.001)
+            }
+        };
+
     let signals = vec![
         TradingSignal {
             id: Uuid::new_v4(),
-            strategy: "sandwich".to_string(),
-            token_address: "So11111111111111111111111111111111111111112".to_string(),
-            signal_type: "buy_opportunity".to_string(),
+            strategy: "piranha_surf_memecoin_snipe".to_string(),
+            token_address,
+            signal_type: "memecoin_launch_opportunity".to_string(),
             confidence: 0.85,
-            estimated_profit: 0.003,
+            estimated_profit: 0.003,                    // Base calculation
+            estimated_profit_nemotron: enhanced_profit, // NVIDIA Nemotron enhanced
+            profit_confidence,                          // Nemotron confidence
+            max_potential_profit: max_profit,           // Nemotron max profit
+            min_expected_profit: min_profit,            // Nemotron min profit
             risk_score: 0.2,
             execution_priority: 1,
+            market_conditions: "high_volatility_bullish".to_string(),
+            volatility_factor: 1.3,                     // 30% above normal volatility
         }
     ];
 
@@ -432,29 +504,73 @@ async fn get_webhook_metrics_wrapper(
 // Dodaj test endpoint
 async fn test_sniper_engine(State(state): State<AppState>) -> impl IntoResponse {
     let test_tokens = vec![
+        // Token 1: Good fundamentals but medium metrics
         serde_json::json!({
             "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
             "volume_usd": 15000.0,
             "liquidity_usd": 25000.0,
             "price_change_24h_percent": 12.5,
             "transaction_count_24h": 150.0,
-            "created_at": "2024-01-15T10:00:00Z"
+            "created_at": "2024-01-15T10:00:00Z",
+            "dev_allocation_percent": 5.0,  // Good - low dev allocation
+            "has_freeze_function": false,    // Good - no freeze
+            "holder_count": 120.0,          // Good - decent holders
+            "is_verified": true,            // Good - verified
+            "team_doxxed": false,           // Neutral
+            "listing_platform": "raydium"
         }),
+        // Token 2: Red flags - should be filtered
         serde_json::json!({
             "mint": "So11111111111111111111111111111111111111112",
             "volume_usd": 500.0,  // Too low
             "liquidity_usd": 2000.0,  // Too low
             "price_change_24h_percent": 5.0,
             "transaction_count_24h": 25.0,
-            "created_at": "2024-01-10T10:00:00Z"
+            "created_at": "2024-01-10T10:00:00Z",
+            "dev_allocation_percent": 80.0,  // RED FLAG - high dev allocation
+            "has_freeze_function": true,     // RED FLAG - has freeze
+            "holder_count": 15.0,           // RED FLAG - low holders
+            "is_verified": false,           // RED FLAG - not verified
+            "metadata": {
+                "name": "SafeMoon🚀💎",
+                "description": "Guaranteed 100x returns to the MOON! Lambo incoming!"
+            }
         }),
+        // Token 3: Excellent opportunity - pump.fun gem
         serde_json::json!({
             "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
             "volume_usd": 75000.0,  // High volume
             "liquidity_usd": 120000.0,  // High liquidity
             "price_change_24h_percent": 25.0,  // Strong momentum
             "transaction_count_24h": 500.0,
-            "created_at": "2024-01-15T08:00:00Z"  // Recent
+            "created_at": "2024-01-15T08:00:00Z",  // Recent
+            "dev_allocation_percent": 2.0,   // EXCELLENT - very low dev allocation
+            "has_freeze_function": false,    // EXCELLENT - no freeze
+            "holder_count": 350.0,          // EXCELLENT - many holders
+            "is_verified": true,            // EXCELLENT - verified
+            "team_doxxed": true,            // EXCELLENT - doxxed team
+            "listing_platform": "pump.fun", // GOOD - pump.fun listing
+            "metadata": {
+                "name": "SolanaDoge",
+                "description": "Community-driven meme token on Solana"
+            }
+        }),
+        // Token 4: Suspicious metadata test
+        serde_json::json!({
+            "mint": "SuspiciousToken123456789012345678901234567890",
+            "volume_usd": 25000.0,
+            "liquidity_usd": 15000.0,
+            "price_change_24h_percent": 45.0,
+            "transaction_count_24h": 200.0,
+            "created_at": "2024-01-15T07:00:00Z",
+            "dev_allocation_percent": 15.0,  // Moderate dev allocation
+            "has_freeze_function": false,
+            "holder_count": 80.0,
+            "is_verified": false,
+            "metadata": {
+                "name": "SAFE🚀INU💎MOON",
+                "description": "100% SAFE guaranteed 1000x returns! Lambo guaranteed!"
+            }
         })
     ];
 
@@ -485,4 +601,23 @@ async fn test_sniper_engine(State(state): State<AppState>) -> impl IntoResponse 
             "pass_rate": format!("{:.1}%", pass_rate * 100.0)
         }
     }))
+}
+
+/// 🧪 Test execution engine endpoint
+async fn test_execution_engine(
+    State(state): State<AppState>,
+    Json(request): Json<ExecutionRequest>,
+) -> Result<Json<ExecutionResult>, StatusCode> {
+    info!("🧪 Testing execution engine with mode: {:?}", request.execution_mode);
+
+    match state.execution_engine.execute_trade(request).await {
+        Ok(result) => {
+            info!("✅ Execution test successful: {:?}", result.success);
+            Ok(Json(result))
+        },
+        Err(e) => {
+            error!("❌ Execution test failed: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }

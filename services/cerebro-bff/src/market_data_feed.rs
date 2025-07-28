@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::feedback_system::MarketSnapshot;
 use crate::helius_client::HeliusClient;
 use crate::quicknode_client::QuickNodeClient;
+use crate::market_data::{ResilientMarketDataClient, MarketDataClient};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -80,6 +81,7 @@ pub struct MarketDataFeed {
     data_config: MarketDataConfig,
     helius_client: Arc<HeliusClient>,
     quicknode_client: Arc<QuickNodeClient>,
+    resilient_client: Arc<ResilientMarketDataClient>,
     market_data: Arc<RwLock<HashMap<String, MarketDataPoint>>>,
     price_history: Arc<RwLock<HashMap<String, PriceHistory>>>,
     subscribed_tokens: Arc<RwLock<Vec<String>>>,
@@ -92,20 +94,29 @@ impl MarketDataFeed {
         config: Arc<Config>,
         helius_client: Arc<HeliusClient>,
         quicknode_client: Arc<QuickNodeClient>,
+        resilient_client: Arc<ResilientMarketDataClient>,
     ) -> Result<Self> {
-        info!("📊 Initializing Market Data Feed v2.0");
-        
+        info!("📊 Initializing Market Data Feed v2.0 with Resilient Client");
+
         let data_config = MarketDataConfig::default();
         let market_data = Arc::new(RwLock::new(HashMap::new()));
         let price_history = Arc::new(RwLock::new(HashMap::new()));
         let subscribed_tokens = Arc::new(RwLock::new(Vec::new()));
         let last_update = Arc::new(RwLock::new(Instant::now()));
-        
+
+        // Test resilient client health
+        match resilient_client.health_check().await {
+            Ok(true) => info!("✅ Resilient market data client is healthy"),
+            Ok(false) => warn!("⚠️ Resilient market data client reports unhealthy"),
+            Err(e) => warn!("⚠️ Failed to check resilient client health: {}", e),
+        }
+
         let feed = MarketDataFeed {
             config,
             data_config,
             helius_client,
             quicknode_client,
+            resilient_client,
             market_data,
             price_history,
             subscribed_tokens,

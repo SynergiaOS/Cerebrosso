@@ -147,14 +147,14 @@ impl Config {
                         quantization: "4bit".to_string(),
                     },
                     deep_analysis: ModelConfig {
-                        name: "llama3:70b-instruct".to_string(),
-                        url: env::var("FINLLAMA_API_URL")
-                            .unwrap_or_else(|_| "http://finllama:11434".to_string()),
-                        max_tokens: 4096,
-                        temperature: 0.6,
-                        target_latency_ms: 200,
+                        name: "nvidia/Llama-3_3-Nemotron-Super-49B-v1_5".to_string(),
+                        url: env::var("NVIDIA_NEMOTRON_URL")
+                            .unwrap_or_else(|_| "http://nemotron:11434".to_string()),
+                        max_tokens: 8192,
+                        temperature: 0.4,
+                        target_latency_ms: 500,
                         enable_kv_cache: true,
-                        quantization: "4bit".to_string(),
+                        quantization: "8bit".to_string(),
                     },
                 },
             },

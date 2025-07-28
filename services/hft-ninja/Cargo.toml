@@ -27,10 +27,10 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 rand = "0.8"
 
 # 🔐 Solana & Blockchain
-solana-client = "1.17"
-solana-sdk = "1.17"
-solana-program = "1.17"
-solana-transaction-status = "1.17"
+solana-client = "1.18"
+solana-sdk = "1.18"
+solana-program = "1.18"
+solana-transaction-status = "1.18"
 anchor-client = "0.29"
 anchor-lang = "0.29"
 
@@ -43,7 +43,7 @@ spl-associated-token-account = "2.2"
 tonic = { version = "0.10", optional = true }
 
 # 📊 Metrics & Monitoring
-prometheus = { version = "0.13", optional = true }
+prometheus = { version = "0.14", optional = true }
 tracing-opentelemetry = { version = "0.22", optional = true }
 opentelemetry = "0.21"
 opentelemetry-jaeger = "0.20"

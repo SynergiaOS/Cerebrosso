@@ -1,0 +1,49 @@
+{
+  "token_profile": {
+    "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "score": 0.85,
+    "weighted_score": 0.85,
+    "potential_score": 0.90,
+    "risk_score": 0.15,
+    "risk_level": "Low",
+    "recommended_action": "SendToCerebro",
+    "analysis_timestamp": 1705312800,
+    "signals": [
+      {
+        "signal_type": "LowDevAllocation",
+        "strength": 0.9,
+        "confidence": 0.95,
+        "source": "security_analysis",
+        "weight": 0.9,
+        "weighted_strength": 0.77,
+        "signal_name": "low_dev_allocation"
+      },
+      {
+        "signal_type": "NoFreezeFunction",
+        "strength": 1.0,
+        "confidence": 0.9,
+        "source": "contract_analysis",
+        "weight": 0.8,
+        "weighted_strength": 0.72,
+        "signal_name": "no_freeze_function"
+      }
+    ],
+    "top_signals": [
+      {
+        "signal_type": "LowDevAllocation",
+        "strength": 0.9,
+        "confidence": 0.95,
+        "source": "security_analysis",
+        "weight": 0.9,
+        "weighted_strength": 0.77,
+        "signal_name": "low_dev_allocation"
+      }
+    ]
+  },
+  "order_type": "Buy",
+  "amount_sol": 1.0,
+  "max_slippage": 0.05,
+  "execution_mode": "PaperTrading",
+  "priority_fee_lamports": 5000,
+  "use_jito": true
+}

@@ -26,36 +26,95 @@ INFISICAL_ENV="dev"
 # Export secrets to .env file
 export_to_env() {
     echo -e "${BLUE}📤 Exporting secrets to .env file...${NC}"
-    
+
     # Set token
     export INFISICAL_TOKEN="$INFISICAL_TOKEN"
-    
+
     # Create backup of existing .env
     if [ -f .env ]; then
         cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
         echo -e "${YELLOW}📋 Backup created: .env.backup.$(date +%Y%m%d_%H%M%S)${NC}"
     fi
-    
-    # Export secrets to .env
-    infisical export --projectId="$INFISICAL_PROJECT_ID" --env="$INFISICAL_ENV" --format=dotenv > .env.tmp
-    
-    # Add header to .env file
+
+    # Export secrets from Infisical
+    echo -e "${CYAN}Fetching secrets from Infisical...${NC}"
+    infisical export --projectId="$INFISICAL_PROJECT_ID" --env="$INFISICAL_ENV" --format=dotenv > .env.infisical.tmp
+
+    # Merge with existing configuration
     cat > .env << EOF
-# 🔐 Secrets exported from Infisical
+# 🔐 Cerberus Phoenix v2.0 - Environment Variables
+# Secrets from Infisical + Local Configuration
 # Project ID: $INFISICAL_PROJECT_ID
 # Environment: $INFISICAL_ENV
 # Exported at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-# 
-# ⚠️ DO NOT EDIT MANUALLY - Use 'make infisical-sync' to update
-#
 
+# 🔐 SECRETS FROM INFISICAL
 EOF
-    
-    # Append exported secrets
-    cat .env.tmp >> .env
-    rm .env.tmp
-    
-    echo -e "${GREEN}✅ Secrets exported to .env file${NC}"
+
+    # Add Infisical secrets
+    cat .env.infisical.tmp >> .env
+
+    # Add local configuration
+    cat >> .env << EOF
+
+# 🌐 Solana Configuration - DEVNET
+SOLANA_RPC_URL=https://api.devnet.solana.com
+SOLANA_COMMITMENT=confirmed
+SOLANA_WS_URL=wss://api.devnet.solana.com
+SOLANA_NETWORK=devnet
+
+# 🚀 Jito Configuration
+JITO_BLOCK_ENGINE_URL=https://mainnet.block-engine.jito.wtf
+JITO_TIP_AMOUNT=10000
+
+# 🧠 AI Configuration
+FINLLAMA_API_URL=http://localhost:11434
+DEEPSEEK_API_URL=http://localhost:11435
+
+# 🗄️ Qdrant Configuration
+QDRANT_URL=http://qdrant:6333
+QDRANT_COLLECTION=cerberus_context
+
+# 🔄 Multi-RPC Configuration (FREE Providers)
+HELIUS_BASE_URL=https://api.helius.xyz
+HELIUS_MONTHLY_LIMIT=100000
+ALCHEMY_MAINNET_URL=https://solana-mainnet.g.alchemy.com/v2/Wu2Kqfk_50kW_Zs4ifjuf3c7afxLOs7R
+ALCHEMY_DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/Wu2Kqfk_50kW_Zs4ifjuf3c7afxLOs7R
+ALCHEMY_MONTHLY_LIMIT=100000
+PUBLIC_MAINNET_RPC=https://api.mainnet-beta.solana.com
+PUBLIC_DEVNET_RPC=https://api.devnet.solana.com
+
+# 🦈 Piranha Strategy Configuration
+MAX_POSITION_SIZE_SOL=0.1
+ENABLE_JITO=true
+
+# 🌐 Frontend Configuration
+NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_NINJA_URL=http://localhost:8081
+
+# 📊 Monitoring
+PROMETHEUS_RETENTION_TIME=30d
+GRAFANA_ADMIN_PASSWORD=admin
+
+# 🔧 Development Settings
+DEV_MODE=true
+RUST_LOG=debug
+NODE_ENV=development
+
+# 🎣 Helius Webhook Integration
+HELIUS_WEBHOOK_URL=https://your-domain.com/webhooks/helius
+KESTRA_TRIGGER_URL=http://kestra:8080/api/v1/executions/trigger/helius-webhook
+CEREBRO_BFF_URL=http://cerebro-bff:3000
+WEBHOOK_RATE_LIMIT=100
+WEBHOOK_TIMEOUT_MS=5000
+WEBHOOK_BATCH_SIZE=10
+WEBHOOK_PARALLEL_PROCESSING=true
+EOF
+
+    # Clean up
+    rm .env.infisical.tmp
+
+    echo -e "${GREEN}✅ Secrets exported and merged with local config${NC}"
 }
 
 # Sync secrets to Vault

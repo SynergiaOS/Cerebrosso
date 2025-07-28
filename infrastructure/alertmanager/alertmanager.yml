@@ -1,0 +1,244 @@
+# 🚨 Cerberus Phoenix v2.0 - Alertmanager Configuration
+# Enterprise-grade alerting with multi-channel notifications
+
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'cerberus-alerts@synergiaos.com'
+  smtp_auth_username: 'cerberus-alerts@synergiaos.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# 📋 Templates for alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# 🔄 Routing configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  
+  routes:
+    # 🚨 Critical Security Alerts - Immediate notification
+    - match:
+        severity: critical
+        component: security
+      receiver: 'security-critical'
+      group_wait: 0s
+      group_interval: 5s
+      repeat_interval: 15m
+      
+    # ⚠️ Security Warnings - Standard notification
+    - match:
+        component: security
+      receiver: 'security-team'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      
+    # 💰 Trading Alerts - Financial team
+    - match_re:
+        component: '(paper_trading|trading_performance)'
+      receiver: 'trading-team'
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 30m
+      
+    # 🧠 AI Performance Alerts - AI team
+    - match:
+        component: ai_agent
+      receiver: 'ai-team'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      
+    # 🏥 System Health - DevOps team
+    - match_re:
+        component: '(system|infrastructure)'
+      receiver: 'devops-team'
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 2h
+      
+    # 📊 SLA Breaches - Management
+    - match:
+        category: sla
+      receiver: 'management-team'
+      group_wait: 5m
+      group_interval: 10m
+      repeat_interval: 4h
+
+# 📢 Notification receivers
+receivers:
+  # 🔔 Default receiver
+  - name: 'default-receiver'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#cerberus-alerts'
+        title: '🐺 Cerberus Phoenix Alert'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Component:* {{ .Labels.component }}
+          {{ end }}
+        
+  # 🚨 Critical Security Alerts
+  - name: 'security-critical'
+    slack_configs:
+      - api_url: '${SLACK_SECURITY_WEBHOOK_URL}'
+        channel: '#security-critical'
+        title: '🚨 CRITICAL SECURITY ALERT - Cerberus Phoenix'
+        text: |
+          🚨 **IMMEDIATE ACTION REQUIRED** 🚨
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Category:* {{ .Labels.category }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          {{ end }}
+        color: 'danger'
+    email_configs:
+      - to: 'security-team@synergiaos.com'
+        subject: '🚨 CRITICAL: Cerberus Phoenix Security Alert'
+        body: |
+          CRITICAL SECURITY ALERT - IMMEDIATE ACTION REQUIRED
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Category: {{ .Labels.category }}
+          Component: {{ .Labels.component }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          
+          {{ end }}
+          
+          Please investigate immediately and follow incident response procedures.
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_SECURITY_KEY}'
+        description: 'Cerberus Phoenix Critical Security Alert'
+        
+  # 🛡️ Security Team Alerts
+  - name: 'security-team'
+    slack_configs:
+      - api_url: '${SLACK_SECURITY_WEBHOOK_URL}'
+        channel: '#security-alerts'
+        title: '🛡️ Security Alert - Cerberus Phoenix'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Category:* {{ .Labels.category }}
+          {{ end }}
+        color: 'warning'
+    email_configs:
+      - to: 'security-team@synergiaos.com'
+        subject: 'Security Alert: Cerberus Phoenix'
+        
+  # 💰 Trading Team Alerts
+  - name: 'trading-team'
+    slack_configs:
+      - api_url: '${SLACK_TRADING_WEBHOOK_URL}'
+        channel: '#trading-alerts'
+        title: '💰 Trading Alert - Cerberus Phoenix'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          {{ end }}
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+    email_configs:
+      - to: 'trading-team@synergiaos.com'
+        subject: 'Trading Alert: Cerberus Phoenix'
+        
+  # 🧠 AI Team Alerts
+  - name: 'ai-team'
+    slack_configs:
+      - api_url: '${SLACK_AI_WEBHOOK_URL}'
+        channel: '#ai-alerts'
+        title: '🧠 AI Performance Alert - Cerberus Phoenix'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Agent:* {{ .Labels.agent_type }}
+          *Severity:* {{ .Labels.severity }}
+          {{ end }}
+    email_configs:
+      - to: 'ai-team@synergiaos.com'
+        subject: 'AI Performance Alert: Cerberus Phoenix'
+        
+  # 🔧 DevOps Team Alerts
+  - name: 'devops-team'
+    slack_configs:
+      - api_url: '${SLACK_DEVOPS_WEBHOOK_URL}'
+        channel: '#devops-alerts'
+        title: '🔧 System Alert - Cerberus Phoenix'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Component:* {{ .Labels.component }}
+          *Severity:* {{ .Labels.severity }}
+          {{ end }}
+    email_configs:
+      - to: 'devops-team@synergiaos.com'
+        subject: 'System Alert: Cerberus Phoenix'
+        
+  # 👔 Management Team Alerts
+  - name: 'management-team'
+    slack_configs:
+      - api_url: '${SLACK_MANAGEMENT_WEBHOOK_URL}'
+        channel: '#management-alerts'
+        title: '📊 SLA Alert - Cerberus Phoenix'
+        text: |
+          {{ range .Alerts }}
+          *SLA Breach:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Category:* {{ .Labels.category }}
+          *Impact:* {{ .Labels.severity }}
+          {{ end }}
+        color: 'danger'
+    email_configs:
+      - to: 'management@synergiaos.com'
+        subject: 'SLA Breach Alert: Cerberus Phoenix'
+
+# 🔇 Inhibition rules - Prevent alert spam
+inhibit_rules:
+  # Inhibit warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'component']
+    
+  # Inhibit individual component alerts when system-wide alert is firing
+  - source_match:
+      alertname: 'SystemHealthLow'
+    target_match_re:
+      alertname: '(AIDecisionLatencyHigh|TradingVolumeDropped|MarketDataLatencyHigh)'
+    equal: ['cluster']
+    
+  # Inhibit specific security alerts when general security incident is active
+  - source_match:
+      category: 'security_incident'
+    target_match:
+      component: 'security'
+    equal: ['cluster']
+
+# 🔕 Silence configuration
+silences:
+  # Maintenance window silences can be configured here
+  # Example: Silence all alerts during planned maintenance
+  # - matchers:
+  #     - name: alertname
+  #       value: ".*"
+  #   startsAt: "2024-01-01T02:00:00Z"
+  #   endsAt: "2024-01-01T04:00:00Z"
+  #   createdBy: "maintenance-system"
+  #   comment: "Planned maintenance window"

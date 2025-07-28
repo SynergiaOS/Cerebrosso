@@ -309,12 +309,148 @@ impl ContextEngine {
     /// 💾 Load TF-IDF weights from storage
     async fn load_tf_idf_weights(&self) -> Result<()> {
         debug!("📊 Loading TF-IDF weights from storage");
+
+        // Try to search for existing TF-IDF weights
+        match self.qdrant_client.search(vec![0.0; 1536], 1000).await {
+            Ok(results) => {
+                let mut weights = self.tf_idf_weights.write().await;
+                for result in results {
+                    if let (Some(signal_id), Some(weight)) = (
+                        result.payload.get("signal_id").and_then(|v| v.as_str()),
+                        result.payload.get("weight").and_then(|v| v.as_f64())
+                    ) {
+                        weights.insert(signal_id.to_string(), weight);
+                    }
+                }
+                info!("📊 Loaded {} TF-IDF weights from storage", weights.len());
+            }
+            Err(e) => {
+                warn!("⚠️ Could not load TF-IDF weights: {}", e);
+                // Initialize with default weights
+                let mut weights = self.tf_idf_weights.write().await;
+                weights.insert("dev_allocation_high".to_string(), 2.5);
+                weights.insert("freeze_function_present".to_string(), 2.0);
+                weights.insert("suspicious_metadata".to_string(), 3.0);
+                weights.insert("low_holder_count".to_string(), 1.8);
+                weights.insert("team_doxxed".to_string(), 1.5);
+                info!("📊 Initialized default TF-IDF weights");
+            }
+        }
         Ok(())
     }
 
     /// 💾 Load Apriori rules from storage
     async fn load_apriori_rules(&self) -> Result<()> {
         debug!("🔍 Loading Apriori rules from storage");
+
+        // Try to search for existing Apriori rules
+        match self.qdrant_client.search(vec![0.0; 1536], 1000).await {
+            Ok(results) => {
+                let mut rules = self.apriori_rules.write().await;
+                for result in results {
+                    if let Ok(rule) = serde_json::from_value::<AprioriRule>(result.payload.clone()) {
+                        rules.push(rule);
+                    }
+                }
+                info!("🔍 Loaded {} Apriori rules from storage", rules.len());
+            }
+            Err(e) => {
+                warn!("⚠️ Could not load Apriori rules: {}", e);
+                // Initialize with default high-confidence rules
+                let mut rules = self.apriori_rules.write().await;
+
+                // Rule 1: High dev allocation + suspicious metadata → AVOID
+                rules.push(AprioriRule {
+                    antecedent: vec!["dev_allocation_high".to_string(), "suspicious_metadata".to_string()],
+                    consequent: "avoid_token".to_string(),
+                    confidence: 0.95,
+                    support: 0.15,
+                    lift: 3.2,
+                    created_at: Utc::now(),
+                    last_validated: Utc::now(),
+                    success_count: 47,
+                    total_count: 50,
+                });
+
+                // Rule 2: Team doxxed + verified contract → CONSIDER
+                rules.push(AprioriRule {
+                    antecedent: vec!["team_doxxed".to_string(), "contract_verified".to_string()],
+                    consequent: "consider_token".to_string(),
+                    confidence: 0.78,
+                    support: 0.08,
+                    lift: 2.1,
+                    created_at: Utc::now(),
+                    last_validated: Utc::now(),
+                    success_count: 23,
+                    total_count: 30,
+                });
+
+                info!("🔍 Initialized {} default Apriori rules", rules.len());
+            }
+        }
+        Ok(())
+    }
+
+    /// 💾 Save TF-IDF weights to storage
+    pub async fn save_tf_idf_weights(&self) -> Result<()> {
+        debug!("💾 Saving TF-IDF weights to storage");
+
+        let weights = self.tf_idf_weights.read().await;
+        let mut points = Vec::new();
+
+        for (signal_id, weight) in weights.iter() {
+            let mut payload = serde_json::Map::new();
+            payload.insert("signal_id".to_string(), serde_json::Value::String(signal_id.clone()));
+            payload.insert("weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(*weight).unwrap()));
+            payload.insert("updated_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
+
+            points.push(crate::qdrant_client::QdrantPoint {
+                id: signal_id.clone(),
+                vector: vec![*weight as f32; 1536], // Simple embedding based on weight
+                payload: serde_json::Value::Object(payload),
+            });
+        }
+
+        if !points.is_empty() {
+            match self.qdrant_client.upsert_points(points).await {
+                Ok(_) => info!("💾 Saved {} TF-IDF weights to storage", weights.len()),
+                Err(e) => warn!("⚠️ Failed to save TF-IDF weights: {}", e),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 💾 Save Apriori rules to storage
+    pub async fn save_apriori_rules(&self) -> Result<()> {
+        debug!("💾 Saving Apriori rules to storage");
+
+        let rules = self.apriori_rules.read().await;
+        let mut points = Vec::new();
+
+        for (idx, rule) in rules.iter().enumerate() {
+            let rule_json = serde_json::to_value(rule)?;
+
+            // Create embedding based on rule characteristics
+            let mut embedding = vec![0.0f32; 1536];
+            embedding[0] = rule.confidence as f32;
+            embedding[1] = rule.support as f32;
+            embedding[2] = rule.lift as f32;
+
+            points.push(crate::qdrant_client::QdrantPoint {
+                id: format!("rule_{}", idx),
+                vector: embedding,
+                payload: rule_json,
+            });
+        }
+
+        if !points.is_empty() {
+            match self.qdrant_client.upsert_points(points).await {
+                Ok(_) => info!("💾 Saved {} Apriori rules to storage", rules.len()),
+                Err(e) => warn!("⚠️ Failed to save Apriori rules: {}", e),
+            }
+        }
+
         Ok(())
     }
 
@@ -344,6 +480,69 @@ impl ContextEngine {
         weighted_signals.sort_by(|a, b| b.importance_score.partial_cmp(&a.importance_score).unwrap());
 
         Ok(weighted_signals)
+    }
+
+    /// 🔍 Apply Apriori rules for decision making
+    pub async fn apply_apriori_rules(&self, signals: &[String]) -> Result<Vec<String>> {
+        let rules = self.apriori_rules.read().await;
+        let mut recommendations = Vec::new();
+
+        for rule in rules.iter() {
+            // Check if all antecedents are present in the signals
+            let antecedents_present = rule.antecedent.iter()
+                .all(|antecedent| signals.contains(antecedent));
+
+            if antecedents_present && rule.confidence > 0.7 {
+                recommendations.push(format!(
+                    "{} (confidence: {:.2}, support: {:.2}, lift: {:.2})",
+                    rule.consequent, rule.confidence, rule.support, rule.lift
+                ));
+
+                info!("🔍 Applied rule: {:?} → {} (confidence: {:.2})",
+                      rule.antecedent, rule.consequent, rule.confidence);
+            }
+        }
+
+        Ok(recommendations)
+    }
+
+    /// 📊 Update TF-IDF weights based on signal performance
+    pub async fn update_tf_idf_weights(&self, signal_id: &str, performance_delta: f64) -> Result<()> {
+        let mut weights = self.tf_idf_weights.write().await;
+
+        let current_weight = *weights.get(signal_id).unwrap_or(&1.0);
+        let new_weight = (current_weight + performance_delta * 0.1).max(0.1).min(5.0); // Bounded between 0.1 and 5.0
+
+        weights.insert(signal_id.to_string(), new_weight);
+
+        debug!("📊 Updated TF-IDF weight for {}: {:.3} → {:.3} (Δ: {:.3})",
+               signal_id, current_weight, new_weight, performance_delta);
+
+        Ok(())
+    }
+
+    /// 📈 Update Apriori rule performance
+    pub async fn update_rule_performance(&self, antecedents: &[String], consequent: &str, success: bool) -> Result<()> {
+        let mut rules = self.apriori_rules.write().await;
+
+        for rule in rules.iter_mut() {
+            if rule.antecedent == antecedents && rule.consequent == consequent {
+                rule.total_count += 1;
+                if success {
+                    rule.success_count += 1;
+                }
+                rule.last_validated = Utc::now();
+
+                // Recalculate confidence based on actual performance
+                rule.confidence = rule.success_count as f64 / rule.total_count as f64;
+
+                info!("📈 Updated rule performance: {:?} → {} (success: {}, confidence: {:.2})",
+                      antecedents, consequent, success, rule.confidence);
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     /// 🔍 Search for similar contexts

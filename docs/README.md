@@ -6,9 +6,11 @@
 
 Cerberus Phoenix v2.0 is a sophisticated HFT system designed for Solana blockchain, featuring:
 - **AI-powered risk analysis** with TF-IDF algorithms
+- **Dynamic signal weighting** that adapts to market conditions
 - **Multi-RPC optimization** with 95%+ cost reduction
 - **Real-time token discovery** through webhooks and streaming
 - **Intelligent caching** with volatility-based TTL
+- **Self-learning performance tracking** for continuous improvement
 - **Production-ready infrastructure** with monitoring and alerting
 
 ## 🚀 Quick Start
