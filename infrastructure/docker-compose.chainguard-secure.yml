@@ -1,0 +1,187 @@
+# 🛡️ Cerberus Phoenix v2.0 - Chainguard Secure Configuration
+# Ultra-secure production deployment with distroless containers
+
+version: '3.8'
+
+networks:
+  cerberus-secure:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+
+volumes:
+  qdrant_data_secure:
+  prometheus_data_secure:
+  grafana_data_secure:
+  postgres_data_secure:
+
+services:
+  # 🛡️ Chainguard PostgreSQL - Distroless & Secure
+  postgres-secure:
+    image: cgr.dev/chainguard/postgres:latest
+    container_name: cerberus-postgres-secure
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cerberus_phoenix
+      POSTGRES_USER: cerberus
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data_secure:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - cerberus-secure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cerberus"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+
+  # 🧠 Chainguard Qdrant - Vector Database
+  qdrant-secure:
+    image: cgr.dev/chainguard/qdrant:latest
+    container_name: cerberus-qdrant-secure
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data_secure:/qdrant/storage
+    networks:
+      - cerberus-secure
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # 🥷 HFT-Ninja - Chainguard Rust
+  hft-ninja-secure:
+    build:
+      context: ../services/hft-ninja
+      dockerfile: Dockerfile.chainguard
+    image: cerberus/hft-ninja:chainguard-secure
+    container_name: cerberus-hft-ninja-secure
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      RUST_LOG: info
+      SOLANA_NETWORK: devnet
+    secrets:
+      - helius_api_key
+      - quicknode_api_key
+    networks:
+      - cerberus-secure
+    depends_on:
+      - postgres-secure
+      - qdrant-secure
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+
+  # 🧠 Cerebro-BFF - Chainguard Rust
+  cerebro-bff-secure:
+    build:
+      context: ../services/cerebro-bff
+      dockerfile: Dockerfile.chainguard
+    image: cerberus/cerebro-bff:chainguard-secure
+    container_name: cerberus-cerebro-bff-secure
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgresql://cerberus:${POSTGRES_PASSWORD}@postgres-secure:5432/cerberus_phoenix
+      QDRANT_URL: http://qdrant-secure:6333
+    secrets:
+      - helius_api_key
+      - birdeye_api_key
+    networks:
+      - cerberus-secure
+    depends_on:
+      - postgres-secure
+      - qdrant-secure
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+
+  # 📊 Chainguard Grafana - Monitoring
+  grafana-secure:
+    image: cgr.dev/chainguard/grafana:latest
+    container_name: cerberus-grafana-secure
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD_FILE: /run/secrets/grafana_password
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
+    secrets:
+      - grafana_password
+    volumes:
+      - grafana_data_secure:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - cerberus-secure
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # 📈 Chainguard Prometheus - Metrics
+  prometheus-secure:
+    image: cgr.dev/chainguard/prometheus:latest
+    container_name: cerberus-prometheus-secure
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data_secure:/prometheus
+      - ./prometheus/prometheus-secure.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - cerberus-secure
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+
+secrets:
+  postgres_password:
+    external: true
+  grafana_password:
+    external: true
+  helius_api_key:
+    external: true
+  quicknode_api_key:
+    external: true
+  birdeye_api_key:
+    external: true

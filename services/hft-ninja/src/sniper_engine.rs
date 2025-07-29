@@ -14,6 +14,7 @@ pub struct TokenProfile {
     pub mint: String,
     pub score: f64,
     pub signals: Vec<TradingSignal>,
+    pub enhanced_signals: Vec<EnhancedSignal>,  // 🎯 NEW: Dynamic weighted signals
     pub risk_level: RiskLevel,
     pub analysis_timestamp: i64,
     pub recommended_action: RecommendedAction,
@@ -21,6 +22,7 @@ pub struct TokenProfile {
     pub potential_score: f64,
     pub risk_score: f64,
     pub weighted_score: f64,
+    pub dynamic_score: f64,  // 🎯 NEW: Score calculated with dynamic weights
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,15 +203,20 @@ impl SniperProfileEngine {
         let signals = self.extract_weighted_signals(token_data, volume_usd, liquidity_usd);
         let (potential_score, risk_score_weighted, weighted_score) = self.calculate_weighted_scores(&signals);
 
-        // Get top signals for Context Engine
-        let top_signals = self.get_top_signals(&signals, self.config.top_signals_count);
+        // 🎯 NEW: Generate enhanced signals with dynamic weighting
+        let enhanced_signals = self.calculate_dynamic_weights(&signals);
+        let dynamic_score = self.calculate_dynamic_score(&enhanced_signals);
+
+        // Get top signals for Context Engine (use enhanced signals for better selection)
+        let top_signals = self.get_top_enhanced_signals(&enhanced_signals, self.config.top_signals_count);
         let risk_level = self.map_risk_level(risk_score);
-        let recommended_action = self.determine_action(&risk_level, potential_score, &signals);
+        let recommended_action = self.determine_action_enhanced(&risk_level, dynamic_score, &enhanced_signals);
 
         let profile = TokenProfile {
             mint: mint.clone(),
             score: weighted_score,
             signals: signals.clone(),
+            enhanced_signals,  // 🎯 NEW: Include enhanced signals
             risk_level: risk_level.clone(),
             analysis_timestamp: Utc::now().timestamp(),
             recommended_action: recommended_action.clone(),
@@ -217,6 +224,7 @@ impl SniperProfileEngine {
             potential_score,
             risk_score: risk_score_weighted,
             weighted_score,
+            dynamic_score,  // 🎯 NEW: Include dynamic score
         };
 
         let duration = start.elapsed();
@@ -904,6 +912,90 @@ impl SniperProfileEngine {
         debug!("📈 Signal performance updated: {} -> success_rate={:.2}, profit_impact={:.2}",
                signal_name, new_rate, new_impact);
     }
+
+    /// 🎯 Calculate overall score using dynamic weights
+    fn calculate_dynamic_score(&self, enhanced_signals: &[EnhancedSignal]) -> f64 {
+        if enhanced_signals.is_empty() {
+            return 0.0;
+        }
+
+        let total_weighted_strength: f64 = enhanced_signals.iter()
+            .map(|signal| signal.base_signal.strength * signal.dynamic_weight * signal.confidence_adjusted)
+            .sum();
+
+        let total_weights: f64 = enhanced_signals.iter()
+            .map(|signal| signal.dynamic_weight.abs())
+            .sum();
+
+        if total_weights > 0.0 {
+            total_weighted_strength / total_weights
+        } else {
+            0.0
+        }
+    }
+
+    /// 🎯 Get top enhanced signals for Context Engine
+    fn get_top_enhanced_signals(&self, enhanced_signals: &[EnhancedSignal], count: usize) -> Vec<TradingSignal> {
+        let mut signals_with_score: Vec<_> = enhanced_signals.iter()
+            .map(|enhanced| {
+                let score = enhanced.base_signal.strength * enhanced.dynamic_weight * enhanced.confidence_adjusted;
+                (enhanced.base_signal.clone(), score)
+            })
+            .collect();
+
+        // Sort by dynamic score (descending)
+        signals_with_score.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        signals_with_score.into_iter()
+            .take(count)
+            .map(|(signal, _)| signal)
+            .collect()
+    }
+
+    /// 🎯 Enhanced action determination using dynamic signals
+    fn determine_action_enhanced(&self, risk_level: &RiskLevel, dynamic_score: f64, enhanced_signals: &[EnhancedSignal]) -> RecommendedAction {
+        // Count positive vs negative signals with dynamic weights
+        let positive_weight: f64 = enhanced_signals.iter()
+            .filter(|s| s.dynamic_weight > 0.0)
+            .map(|s| s.dynamic_weight * s.confidence_adjusted)
+            .sum();
+
+        let negative_weight: f64 = enhanced_signals.iter()
+            .filter(|s| s.dynamic_weight < 0.0)
+            .map(|s| s.dynamic_weight.abs() * s.confidence_adjusted)
+            .sum();
+
+        let net_signal_strength = positive_weight - negative_weight;
+
+        match risk_level {
+            RiskLevel::Low => {
+                if dynamic_score > 0.7 && net_signal_strength > 0.5 {
+                    RecommendedAction::SendToCerebro  // High confidence - send to AI
+                } else if dynamic_score > 0.5 && net_signal_strength > 0.2 {
+                    RecommendedAction::Monitor  // Medium confidence - monitor
+                } else {
+                    RecommendedAction::Ignore  // Low confidence
+                }
+            },
+            RiskLevel::Medium => {
+                if dynamic_score > 0.8 && net_signal_strength > 0.6 {
+                    RecommendedAction::SendToCerebro  // Very high confidence needed
+                } else if dynamic_score > 0.6 && net_signal_strength > 0.3 {
+                    RecommendedAction::Monitor  // Monitor for changes
+                } else {
+                    RecommendedAction::Ignore  // Too risky
+                }
+            },
+            RiskLevel::High => {
+                if dynamic_score > 0.9 && net_signal_strength > 0.8 {
+                    RecommendedAction::Alert  // Alert but don't auto-trade
+                } else {
+                    RecommendedAction::Ignore  // Too risky
+                }
+            },
+            RiskLevel::Extreme => RecommendedAction::Ignore,  // Always ignore extreme risk
+        }
+    }
 }
 
 impl Default for SniperProfileEngine {
@@ -1051,6 +1143,76 @@ mod tests {
             risk_appetite: 0.6,
             volume_trend: VolumeTrend::Stable,
             last_updated: Utc::now().timestamp(),
+        };
+
+        engine.market_context = memecoin_context;
+        let memecoin_enhanced = engine.calculate_dynamic_weights(&signals);
+
+        // In memecoin season, pump.fun listings should get higher weight
+        assert!(memecoin_enhanced[0].dynamic_weight > normal_enhanced[0].dynamic_weight);
+    }
+
+    #[test]
+    fn test_enhanced_token_profile_integration() {
+        let engine = SniperProfileEngine::new_default();
+
+        // Create test token data with volume spike
+        let token_data = serde_json::json!({
+            "mint": "test_token_123",
+            "volume_usd": 75000.0,  // Above volume spike threshold
+            "liquidity_usd": 50000.0,
+            "price_change_24h_percent": 15.0,  // Significant price movement
+            "transaction_count": 100,
+            "avg_transaction_size_usd": 750.0
+        });
+
+        let profile = engine.analyze_token(&token_data).unwrap();
+
+        // Verify enhanced signals are included
+        assert!(!profile.enhanced_signals.is_empty());
+        assert!(profile.dynamic_score > 0.0);
+
+        // Check that enhanced signals have dynamic weights
+        for enhanced_signal in &profile.enhanced_signals {
+            assert!(enhanced_signal.dynamic_weight != 0.0);
+            assert!(enhanced_signal.confidence_adjusted > 0.0);
+            assert!(enhanced_signal.market_relevance > 0.0);
+        }
+
+        // Dynamic score should be different from weighted score
+        assert_ne!(profile.dynamic_score, profile.weighted_score);
+
+        println!("✅ Enhanced profile test passed:");
+        println!("  - Enhanced signals: {}", profile.enhanced_signals.len());
+        println!("  - Dynamic score: {:.3}", profile.dynamic_score);
+        println!("  - Weighted score: {:.3}", profile.weighted_score);
+    }
+
+    #[test]
+    fn test_memecoin_season_weighting() {
+        let mut engine = SniperProfileEngine::new_default();
+
+        // Create test signals
+        let signals = vec![
+            TradingSignal {
+                signal_type: SignalType::PumpFunListing,
+                strength: 0.8,
+                confidence: 0.9,
+                weight: 0.7,
+                weighted_strength: 0.8 * 0.7 * 0.9,
+                signal_name: "pump_fun_listing".to_string(),
+            }
+        ];
+
+        // Test normal market conditions
+        let normal_enhanced = engine.calculate_dynamic_weights(&signals);
+
+        // Test memecoin season
+        let memecoin_context = MarketContext {
+            memecoin_season: true,
+            risk_appetite: 0.8,
+            volume_trend: VolumeTrend::Increasing,
+            last_updated: chrono::Utc::now().timestamp(),
         };
 
         engine.update_market_context(memecoin_context);

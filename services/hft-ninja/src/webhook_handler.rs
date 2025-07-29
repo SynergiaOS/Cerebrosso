@@ -240,19 +240,32 @@ pub async fn handle_helius_webhook(
     info!("🎯 Processing {} relevant events, {} passed sniper filter",
           processed_events.len(), sniper_results.len());
 
-    // 4. Parallel processing: Kestra + Cerebro-BFF (only for sniper-approved tokens)
+    // 4. Parallel processing: Kestra + Cerebro-BFF (send enhanced profiles to AI)
     let kestra_future = trigger_kestra_workflow(&state.kestra_trigger_url, &payload);
 
-    // Filter events to only include sniper-approved tokens
-    let approved_events: Vec<_> = processed_events.into_iter()
-        .filter(|event| {
-            event.token_mint.as_ref()
-                .map(|mint| sniper_results.iter().any(|(approved_mint, _)| approved_mint == mint))
-                .unwrap_or(false)
-        })
+    // 🎯 NEW: Send enhanced token profiles with dynamic signals to Cerebro-BFF
+    let approved_profiles: Vec<_> = sniper_results.iter()
+        .map(|(_, profile)| profile.clone())
         .collect();
 
-    let cerebro_future = notify_cerebro_bff(&state.cerebro_bff_url, &approved_events);
+    // 🎯 NEW: Always use enhanced profiles if available, otherwise fallback to events
+    let cerebro_future = async {
+        if !approved_profiles.is_empty() {
+            info!("🧠 Sending {} enhanced profiles to Cerebro-BFF for AI analysis", approved_profiles.len());
+            notify_cerebro_bff_with_profiles(&state.cerebro_bff_url, &approved_profiles).await
+        } else {
+            // Fallback to original method if no profiles
+            let approved_events: Vec<_> = processed_events.into_iter()
+                .filter(|event| {
+                    event.token_mint.as_ref()
+                        .map(|mint| sniper_results.iter().any(|(approved_mint, _)| approved_mint == mint))
+                        .unwrap_or(false)
+                })
+                .collect();
+            info!("📤 Sending {} events to Cerebro-BFF (fallback mode)", approved_events.len());
+            notify_cerebro_bff(&state.cerebro_bff_url, &approved_events).await
+        }
+    };
     
     let (kestra_result, cerebro_result) = tokio::join!(kestra_future, cerebro_future);
 
@@ -272,8 +285,8 @@ pub async fn handle_helius_webhook(
     
     match cerebro_result {
         Ok(_) => {
-            if !approved_events.is_empty() {
-                info!("✅ Successfully notified Cerebro-BFF about {} approved tokens", approved_events.len());
+            if !approved_profiles.is_empty() {
+                info!("✅ Successfully sent {} enhanced profiles to Cerebro-BFF", approved_profiles.len());
                 state.metrics.cerebro_notifications.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             } else {
                 debug!("ℹ️ No approved tokens to send to Cerebro-BFF");

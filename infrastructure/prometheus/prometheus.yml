@@ -20,7 +20,7 @@ scrape_configs:
   - job_name: 'hft-ninja'
     static_configs:
       - targets: ['hft-ninja:8080']
-    scrape_interval: 5s  # High frequency for trading metrics
+    scrape_interval: 15s  # High frequency for trading metrics
     metrics_path: /metrics
     scrape_timeout: 10s
 
