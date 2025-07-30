@@ -81,6 +81,8 @@ tokio-test = "0.4"
 mockall = "0.12"
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"
+tower-test = "0.4"
+axum-test = "14.0"
 
 # 📊 Benchmarks
 # [[bench]]
@@ -121,6 +123,8 @@ qdrant = ["qdrant-client"]
 ai = ["async-openai", "tiktoken-rs", "candle-core", "candle-nn"]
 metrics = ["prometheus", "tracing-opentelemetry"]
 tracing = ["tracing-subscriber"]
+
+
 
 # 📋 Metadata
 [package.metadata.docs.rs]

@@ -4,7 +4,7 @@
 //! for the Cerberus Phoenix v2.0 trading system.
 
 use crate::config::Config;
-use crate::qdrant_client::QdrantClient;
+use crate::qdrant_client::{QdrantClient, QdrantPoint};
 use anyhow::{Result, anyhow};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -404,7 +404,7 @@ impl ContextEngine {
             payload.insert("weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(*weight).unwrap()));
             payload.insert("updated_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
 
-            points.push(crate::qdrant_client::QdrantPoint {
+            points.push(QdrantPoint {
                 id: signal_id.clone(),
                 vector: vec![*weight as f32; 1536], // Simple embedding based on weight
                 payload: serde_json::Value::Object(payload),
@@ -437,7 +437,7 @@ impl ContextEngine {
             embedding[1] = rule.support as f32;
             embedding[2] = rule.lift as f32;
 
-            points.push(crate::qdrant_client::QdrantPoint {
+            points.push(QdrantPoint {
                 id: format!("rule_{}", idx),
                 vector: embedding,
                 payload: rule_json,
@@ -554,8 +554,33 @@ impl ContextEngine {
 
     /// 🧠 Create embeddings for text
     pub async fn create_embeddings(&self, text: &str) -> Result<Vec<f32>> {
-        // TODO: Implement actual embedding generation using FinLlama
-        Ok(vec![0.1; 1536])
+        // Simple TF-IDF based embeddings for now
+        // In production, this would call FinLlama API
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut embedding = vec![0.0; 1536];
+
+        // Generate simple hash-based embeddings
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        for (i, word) in words.iter().enumerate() {
+            let mut hasher = DefaultHasher::new();
+            word.hash(&mut hasher);
+            let hash = hasher.finish();
+
+            let idx = (hash as usize) % 1536;
+            embedding[idx] += 1.0 / (words.len() as f32);
+        }
+
+        // Normalize
+        let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for val in &mut embedding {
+                *val /= norm;
+            }
+        }
+
+        Ok(embedding)
     }
 
     /// 🔍 Search for similar contexts (simplified for webhook integration)

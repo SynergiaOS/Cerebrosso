@@ -47,6 +47,16 @@ stop_rust_services() {
         fi
         rm -f logs/cerebro-bff.pid
     fi
+
+    # Stop Dashboard
+    if [[ -f logs/dashboard.pid ]]; then
+        PID=$(cat logs/dashboard.pid)
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            success "Dashboard stopped"
+        fi
+        rm -f logs/dashboard.pid
+    fi
     
     # Kill any remaining cargo processes
     pkill -f "cargo run" 2>/dev/null || true

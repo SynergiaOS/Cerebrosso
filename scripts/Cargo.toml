@@ -1,0 +1,12 @@
+[package]
+name = "vault_test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "test_vault_integration"
+path = "test_vault_integration.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+cerebro-bff = { path = "../services/cerebro-bff" }

@@ -12,6 +12,7 @@ pub mod piranha_strategy;
 pub mod ai_agent;
 pub mod qdrant_client;
 pub mod metrics;
+pub mod vault_client;
 
 pub use config::Config;
 pub use context_engine::{ContextEngine, WeightedSignal, AprioriRule, ContextMemory};
@@ -22,6 +23,7 @@ pub use piranha_strategy::{PiranhaStrategy, PiranhaConfig, TradingOpportunity, O
 pub use ai_agent::AIAgent;
 pub use qdrant_client::{QdrantClient, QdrantPoint, QdrantSearchResult};
 pub use metrics::MetricsCollector;
+pub use vault_client::{VaultClient, SecureConfig, EncryptedData};
 
 /// 🧪 Test utilities for the Context Engine
 #[cfg(test)]

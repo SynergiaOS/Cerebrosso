@@ -13,6 +13,7 @@ pub struct Config {
     pub helius: HeliusConfig,
     pub quicknode: QuickNodeConfig,
     pub piranha: PiranhaConfig,
+    pub vault: VaultConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +91,14 @@ pub struct PiranhaConfig {
     pub emergency_exit_threshold: f64,
     pub profit_target: f64,
     pub stop_loss: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultConfig {
+    pub url: String,
+    pub token: String,
+    pub mount_path: String,
+    pub encryption_key: String,
 }
 
 impl Config {
@@ -196,6 +205,16 @@ impl Config {
                 emergency_exit_threshold: 0.8,
                 profit_target: 0.15,
                 stop_loss: 0.1,
+            },
+            vault: VaultConfig {
+                url: env::var("VAULT_URL")
+                    .unwrap_or_else(|_| "http://vault:8200".to_string()),
+                token: env::var("VAULT_TOKEN")
+                    .unwrap_or_else(|_| "cerberus_root_token".to_string()),
+                mount_path: env::var("VAULT_MOUNT_PATH")
+                    .unwrap_or_else(|_| "secret".to_string()),
+                encryption_key: env::var("VAULT_ENCRYPTION_KEY")
+                    .unwrap_or_else(|_| "cerberus_master_key".to_string()),
             },
         })
     }

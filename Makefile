@@ -1,7 +1,7 @@
 # 🐺 Projekt Cerberus Phoenix v2.0 - DevKit
 # Centralny panel sterowania dla całego ekosystemu
 
-.PHONY: help dev dev-setup build deploy-cloud phoenix-restart clean test lint docs prod-setup prod-deploy prod-status prod-logs prod-stop security-full
+.PHONY: help dev dev-setup build deploy-cloud phoenix-restart clean test lint docs prod-setup prod-deploy prod-status prod-logs prod-stop security-full docker-dev docker-prod docker-build docker-up docker-down docker-logs docker-status
 
 # Kolory dla lepszej czytelności
 RED=\033[0;31m
@@ -222,6 +222,50 @@ release: ## 📦 Przygotuj release
 	$(MAKE) security-scan
 	$(MAKE) build-apko
 	@echo "$(GREEN)✅ Release gotowy!$(NC)"
+
+# 🐳 Docker Commands
+docker-dev: ## 🐳 Start development environment with Docker
+	@echo "$(GREEN)🐳 Starting Cerberus Phoenix v2.0 with Docker...$(NC)"
+	@docker-compose up -d postgres qdrant grafana prometheus
+	@echo "$(YELLOW)⏳ Waiting for infrastructure...$(NC)"
+	@sleep 10
+	@docker-compose up -d hft-ninja dashboard
+	@echo "$(GREEN)✅ Docker development environment ready!$(NC)"
+	@echo ""
+	@echo "$(CYAN)🔗 Service URLs:$(NC)"
+	@echo "  🎨 Dashboard:     http://localhost:3002"
+	@echo "  🥷 HFT-Ninja:     http://localhost:8091"
+	@echo "  📊 Grafana:       http://localhost:3001"
+
+docker-build: ## 🐳 Build all Docker images
+	@echo "$(BLUE)🏗️ Building Docker images...$(NC)"
+	@docker-compose build --parallel
+	@echo "$(GREEN)✅ All images built!$(NC)"
+
+docker-up: ## 🐳 Start all Docker services
+	@docker-compose up -d
+
+docker-down: ## 🐳 Stop all Docker services
+	@docker-compose down
+
+docker-logs: ## 🐳 View Docker logs
+	@docker-compose logs -f
+
+docker-status: ## 🐳 Show Docker service status
+	@echo "$(CYAN)📊 Docker Service Status:$(NC)"
+	@docker-compose ps
+	@echo ""
+	@echo "$(CYAN)🔗 Health Checks:$(NC)"
+	@echo -n "  🎨 Dashboard:     "
+	@curl -s http://localhost:3002 >/dev/null && echo "$(GREEN)✅ ONLINE$(NC)" || echo "$(RED)❌ OFFLINE$(NC)"
+	@echo -n "  🥷 HFT-Ninja:     "
+	@curl -s http://localhost:8091/health >/dev/null && echo "$(GREEN)✅ ONLINE$(NC)" || echo "$(RED)❌ OFFLINE$(NC)"
+
+docker-clean: ## 🐳 Clean Docker resources
+	@echo "$(RED)🧹 Cleaning Docker resources...$(NC)"
+	@docker-compose down -v --remove-orphans
+	@docker system prune -af
+	@echo "$(GREEN)✅ Docker cleanup completed!$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help

@@ -1,5 +1,5 @@
 ---
-type: "agent_requested"
+type: "manual"
 description: "Example description"
 ---
 # Project Rules & Guidelines for AI Assistance (e.g., Augment Code, Claude Code)
