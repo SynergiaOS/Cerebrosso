@@ -1,0 +1,131 @@
+# 🔐 Projekt Cerberus Phoenix v3.0 - Enterprise Security Hardening
+# Enterprise-grade security hardening with HSM, multi-sig, and zero-trust architecture
+
+[package]
+name = "security-hardening"
+version = "3.0.0"
+edition = "2021"
+authors = ["SynergiaOS <202778732+SynergiaOS@users.noreply.github.com>"]
+description = "🔐 Enterprise security hardening with HSM integration and zero-trust architecture"
+license = "MIT"
+repository = "https://github.com/SynergiaOS/Cerebros"
+keywords = ["security", "hsm", "multi-sig", "zero-trust", "enterprise"]
+categories = ["cryptography", "security", "authentication"]
+
+[dependencies]
+# 🚀 Async Runtime & Web Framework
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["json", "tower-log", "ws"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "auth"] }
+
+# 🌐 HTTP Client & Serialization
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# 🔐 Advanced Cryptography & Security
+ring = "0.17"
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+rustls-webpki = "0.101"
+webpki-roots = "0.25"
+x509-parser = "0.15"
+pem = "3.0"
+
+# 🔑 HSM & Hardware Security
+pkcs11 = "0.8"
+yubico = { version = "0.11", features = ["otp"] }
+tpm = "0.1"
+
+# 🔐 Multi-Signature & Wallet Security
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }
+secp256k1 = { version = "0.28", features = ["rand", "recovery"] }
+bip32 = "0.5"
+bip39 = "2.0"
+tiny-bip39 = "1.0"
+
+# 🛡️ Zero-Trust & Authentication
+jsonwebtoken = "9.2"
+oauth2 = "4.4"
+openidconnect = "3.4"
+argon2 = "0.5"
+scrypt = "0.11"
+bcrypt = "0.15"
+
+# 🔒 Secure Storage & Vault Integration
+hashicorp-vault = "2.1"
+sled = "0.34"
+rocksdb = "0.21"
+
+# 🕵️ Advanced Threat Detection
+regex = "1.10"
+aho-corasick = "1.1"
+bloom = "0.3"
+probabilistic-collections = "0.7"
+
+# 📊 Security Metrics & Monitoring
+prometheus = { version = "0.14" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 🔧 Configuration & Environment
+config = "0.14"
+dotenvy = "0.15"
+
+# ⚡ Performance & Utilities
+rayon = "1.8"
+dashmap = "5.5"
+once_cell = "1.19"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# 🔄 Concurrency & Synchronization
+parking_lot = "0.12"
+crossbeam = "0.8"
+async-trait = "0.1"
+
+# 🌊 Secure Communication
+tokio-rustls = "0.24"
+rustls-pemfile = "1.0"
+
+# 🧪 Development & Testing
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+
+# 🎯 Binary Targets
+[[bin]]
+name = "security-hardening"
+path = "src/main.rs"
+
+# 🔧 Build Configuration
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[profile.dev]
+opt-level = 1
+debug = true
+overflow-checks = true
+
+# 📦 Features
+[features]
+default = ["hsm", "multi-sig", "zero-trust", "threat-detection"]
+hsm = ["pkcs11", "yubico", "tpm"]
+multi-sig = ["ed25519-dalek", "secp256k1", "bip32", "bip39"]
+zero-trust = ["jsonwebtoken", "oauth2", "openidconnect"]
+threat-detection = ["regex", "aho-corasick", "bloom"]
+hardware-security = ["ring", "rustls"]
+
+# 📋 Metadata
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,0 +1,236 @@
+# 🎯 Cerberus Phoenix v3.0 - Canary Deployment
+# Canary deployment for safe production rollouts
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-hive-mind-canary
+  namespace: production
+  labels:
+    app: cerberus-hive-mind
+    version: canary
+    tier: production
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubernetes.io/change-cause: "Canary deployment"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cerberus-hive-mind
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: cerberus-hive-mind
+        version: canary
+        tier: production
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: cerberus-hive-mind
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      # 🐝 SwarmCoordinator (Canary)
+      - name: swarm-coordinator
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8090
+          name: http
+        - containerPort: 8091
+          name: websocket
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: SWARM_HOST
+          value: "0.0.0.0"
+        - name: SWARM_PORT
+          value: "8090"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: QDRANT_URL
+          value: "http://qdrant:6333"
+        - name: DEPLOYMENT_TYPE
+          value: "canary"
+        - name: CANARY_ENABLED
+          value: "true"
+        - name: PROMETHEUS_PORT
+          value: "9090"
+        - name: TRACING_LEVEL
+          value: "debug"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8090
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: secrets
+          mountPath: /app/secrets
+          readOnly: true
+
+      # 👑 Agent-Strateg (Canary)
+      - name: agent-strateg
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8100
+          name: http
+        - containerPort: 9100
+          name: metrics
+        env:
+        - name: AGENT_HOST
+          value: "0.0.0.0"
+        - name: AGENT_PORT
+          value: "8100"
+        - name: AGENT_ROLE
+          value: "CEO"
+        - name: DECISION_WEIGHT
+          value: "0.4"
+        - name: DEPLOYMENT_TYPE
+          value: "canary"
+        - name: SWARM_COORDINATOR_URL
+          value: "http://localhost:8090"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "125m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+      volumes:
+      - name: config
+        configMap:
+          name: cerberus-config
+      - name: secrets
+        secret:
+          secretName: cerberus-secrets
+      
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-type: compute-optimized
+      
+      tolerations:
+      - key: "high-performance"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerberus-hive-mind-canary
+  namespace: production
+  labels:
+    app: cerberus-hive-mind
+    version: canary
+spec:
+  selector:
+    app: cerberus-hive-mind
+    version: canary
+  ports:
+  - name: swarm-coordinator
+    port: 8090
+    targetPort: 8090
+    protocol: TCP
+  - name: agent-strateg
+    port: 8100
+    targetPort: 8100
+    protocol: TCP
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: cerberus-hive-mind
+  namespace: production
+spec:
+  host: cerberus-hive-mind
+  subsets:
+  - name: stable
+    labels:
+      version: stable
+  - name: canary
+    labels:
+      version: canary
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: cerberus-hive-mind-canary
+  namespace: production
+spec:
+  hosts:
+  - cerberus-hive-mind
+  http:
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: cerberus-hive-mind
+        subset: canary
+  - route:
+    - destination:
+        host: cerberus-hive-mind
+        subset: stable
+      weight: 90
+    - destination:
+        host: cerberus-hive-mind
+        subset: canary
+      weight: 10
+
+---
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: cerberus-hive-mind-canary
+  namespace: production
+  labels:
+    app: cerberus-hive-mind
+    version: canary
+spec:
+  selector:
+    matchLabels:
+      app: cerberus-hive-mind
+      version: canary
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics

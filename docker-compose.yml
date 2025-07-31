@@ -269,6 +269,75 @@ services:
       retries: 3
       start_period: 40s
 
+  # 🔐 Security Hardening - Enterprise Security Suite
+  security-hardening:
+    build:
+      context: ./services/security-hardening
+      dockerfile: Dockerfile
+    ports:
+      - "8600:8600"  # HTTP API
+      - "9600:9600"  # Prometheus metrics
+    environment:
+      - SECURITY_HOST=0.0.0.0
+      - SECURITY_PORT=8600
+      - HSM_PROVIDER=SoftHSM
+      - HSM_PIN=1234
+      - JWT_SECRET=${JWT_SECRET:-cerberus_jwt_secret_2024}
+      - MULTISIG_THRESHOLD=3
+      - ENABLE_ZERO_TRUST=true
+      - ENABLE_THREAT_DETECTION=true
+      - ENABLE_COMPLIANCE_MONITORING=true
+      - PROMETHEUS_PORT=9600
+      - TRACING_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8600/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 📊 Advanced Monitoring - Enterprise Observability Suite
+  advanced-monitoring:
+    build:
+      context: ./services/advanced-monitoring
+      dockerfile: Dockerfile
+    ports:
+      - "8700:8700"  # HTTP API
+      - "9700:9700"  # Prometheus metrics
+    environment:
+      - MONITORING_HOST=0.0.0.0
+      - MONITORING_PORT=8700
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - INFLUXDB_URL=http://influxdb:8086
+      - ENABLE_DISTRIBUTED_TRACING=true
+      - ENABLE_ANOMALY_DETECTION=true
+      - ENABLE_REAL_TIME_ALERTING=true
+      - ENABLE_PERFORMANCE_ANALYSIS=true
+      - SAMPLING_RATE=0.1
+      - SENSITIVITY_THRESHOLD=0.8
+      - PROMETHEUS_PORT=9700
+      - TRACING_LEVEL=info
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 🔍 Jaeger - Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

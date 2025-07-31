@@ -1,0 +1,403 @@
+# 🚀 Cerberus Phoenix v3.0 - Production Deployment
+# Enterprise Kubernetes deployment for Hive Mind system
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-hive-mind
+  namespace: production
+  labels:
+    app: cerberus-hive-mind
+    version: stable
+    tier: production
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubernetes.io/change-cause: "Production deployment"
+spec:
+  replicas: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: cerberus-hive-mind
+      version: stable
+  template:
+    metadata:
+      labels:
+        app: cerberus-hive-mind
+        version: stable
+        tier: production
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cerberus-hive-mind
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      # 🐝 SwarmCoordinator
+      - name: swarm-coordinator
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8090
+          name: http
+        - containerPort: 8091
+          name: websocket
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: SWARM_HOST
+          value: "0.0.0.0"
+        - name: SWARM_PORT
+          value: "8090"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: QDRANT_URL
+          value: "http://qdrant:6333"
+        - name: ENABLE_WEBSOCKET
+          value: "true"
+        - name: PROMETHEUS_PORT
+          value: "9090"
+        - name: TRACING_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8090
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: secrets
+          mountPath: /app/secrets
+          readOnly: true
+
+      # 👑 Agent-Strateg
+      - name: agent-strateg
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8100
+          name: http
+        - containerPort: 9100
+          name: metrics
+        env:
+        - name: AGENT_HOST
+          value: "0.0.0.0"
+        - name: AGENT_PORT
+          value: "8100"
+        - name: AGENT_ROLE
+          value: "CEO"
+        - name: DECISION_WEIGHT
+          value: "0.4"
+        - name: SWARM_COORDINATOR_URL
+          value: "http://localhost:8090"
+        - name: PROMETHEUS_PORT
+          value: "9100"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "125m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8100
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8100
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+      # 🧠 Context Engine
+      - name: context-engine
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8200
+          name: http
+        - containerPort: 9200
+          name: metrics
+        env:
+        - name: CONTEXT_HOST
+          value: "0.0.0.0"
+        - name: CONTEXT_PORT
+          value: "8200"
+        - name: QDRANT_URL
+          value: "http://qdrant:6333"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: ENABLE_TFIDF
+          value: "true"
+        - name: ENABLE_CLUSTERING
+          value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          initialDelaySeconds: 45
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8200
+          initialDelaySeconds: 15
+          periodSeconds: 10
+
+      # ⚡ Performance Optimizer
+      - name: performance-optimizer
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8500
+          name: http
+        - containerPort: 9500
+          name: metrics
+        env:
+        - name: OPTIMIZER_HOST
+          value: "0.0.0.0"
+        - name: OPTIMIZER_PORT
+          value: "8500"
+        - name: TARGET_LATENCY_MS
+          value: "100"
+        - name: TARGET_ACCURACY
+          value: "0.848"
+        - name: ENABLE_CACHING
+          value: "true"
+        - name: ENABLE_LOAD_BALANCING
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+      # 🔐 Security Hardening
+      - name: security-hardening
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8600
+          name: http
+        - containerPort: 9600
+          name: metrics
+        env:
+        - name: SECURITY_HOST
+          value: "0.0.0.0"
+        - name: SECURITY_PORT
+          value: "8600"
+        - name: HSM_PROVIDER
+          value: "SoftHSM"
+        - name: ENABLE_ZERO_TRUST
+          value: "true"
+        - name: ENABLE_THREAT_DETECTION
+          value: "true"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "125m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+      # 📊 Advanced Monitoring
+      - name: advanced-monitoring
+        image: ${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8700
+          name: http
+        - containerPort: 9700
+          name: metrics
+        env:
+        - name: MONITORING_HOST
+          value: "0.0.0.0"
+        - name: MONITORING_PORT
+          value: "8700"
+        - name: JAEGER_ENDPOINT
+          value: "http://jaeger:14268/api/traces"
+        - name: ENABLE_DISTRIBUTED_TRACING
+          value: "true"
+        - name: ENABLE_ANOMALY_DETECTION
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+      volumes:
+      - name: config
+        configMap:
+          name: cerberus-config
+      - name: secrets
+        secret:
+          secretName: cerberus-secrets
+      
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-type: compute-optimized
+      
+      tolerations:
+      - key: "high-performance"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cerberus-hive-mind
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerberus-hive-mind
+  namespace: production
+  labels:
+    app: cerberus-hive-mind
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: cerberus-hive-mind
+    version: stable
+  ports:
+  - name: swarm-coordinator
+    port: 8090
+    targetPort: 8090
+    protocol: TCP
+  - name: agent-strateg
+    port: 8100
+    targetPort: 8100
+    protocol: TCP
+  - name: context-engine
+    port: 8200
+    targetPort: 8200
+    protocol: TCP
+  - name: performance-optimizer
+    port: 8500
+    targetPort: 8500
+    protocol: TCP
+  - name: security-hardening
+    port: 8600
+    targetPort: 8600
+    protocol: TCP
+  - name: advanced-monitoring
+    port: 8700
+    targetPort: 8700
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cerberus-hive-mind
+  namespace: production
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/CerberusHiveMindRole
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cerberus-hive-mind-netpol
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: cerberus-hive-mind
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: production
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8090
+    - protocol: TCP
+      port: 8100
+    - protocol: TCP
+      port: 8200
+    - protocol: TCP
+      port: 8500
+    - protocol: TCP
+      port: 8600
+    - protocol: TCP
+      port: 8700
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: production
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
