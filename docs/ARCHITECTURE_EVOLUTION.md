@@ -199,4 +199,77 @@ Dokument opisuje strategię głębokiego refaktoringu systemu Cerberus Phoenix, 
 
 ---
 
-**Motto:** *"Evolution so deep it becomes revolution"* 🔥
+## 🐝 **Cerberus Phoenix v3.0: Hive Mind Revolution**
+
+### **🎯 Breakthrough: Swarmagentic Intelligence**
+
+Cerberus Phoenix v3.0 introduces a revolutionary **Hive Mind** architecture that transforms the system from a traditional microservices approach to a distributed AI collective intelligence.
+
+### **🧠 Core Innovation: Specialized AI Agents**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    HIVE MIND CORE                       │
+├─────────────────────────────────────────────────────────┤
+│  🐝 SwarmCoordinator                                    │
+│     ├── Central orchestrator for all AI agents         │
+│     ├── Task delegation with intelligent routing       │
+│     ├── Real-time communication hub                    │
+│     ├── Multi-level memory system                      │
+│     └── Feedback loop for continuous learning          │
+├─────────────────────────────────────────────────────────┤
+│  👑 Agent-Strateg (CEO) - 40% decision weight          │
+│     ├── Goal decomposition and strategic planning      │
+│     ├── Task delegation to specialized agents          │
+│     ├── Decision synthesis from agent reports          │
+│     ├── Risk management and position sizing            │
+│     └── Multi-model AI orchestration                   │
+├─────────────────────────────────────────────────────────┤
+│  🔬 Agent-Analityk - 25% decision weight               │
+│     ├── Qualitative analysis and sentiment             │
+│     ├── Social media and community monitoring          │
+│     ├── News and event impact assessment               │
+│     └── Market psychology evaluation                   │
+├─────────────────────────────────────────────────────────┤
+│  🧮 Agent-Quant - 30% decision weight                  │
+│     ├── Quantitative analysis and modeling             │
+│     ├── Technical indicators and patterns              │
+│     ├── Statistical arbitrage opportunities            │
+│     └── Mathematical risk assessment                   │
+├─────────────────────────────────────────────────────────┤
+│  🛡️ Agent-Nadzorca - 5% weight + veto power           │
+│     ├── Security and compliance monitoring             │
+│     ├── Risk threshold enforcement                     │
+│     ├── Anomaly detection and prevention               │
+│     └── System health and performance oversight        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### **⚡ Key Innovations**
+
+1. **Weighted Decision Making**: Each agent contributes to final decisions based on their expertise weight
+2. **Goal Decomposition**: Complex objectives are broken down into specialized tasks
+3. **Intelligent Memory**: 3-tier memory system (Working/Short/Long-term) with pattern recognition
+4. **Continuous Learning**: Feedback loops enable the system to learn from every decision
+5. **Veto Power**: Security agent can override decisions that exceed risk thresholds
+
+### **🎯 Performance Targets v3.0**
+
+- **Decision Accuracy**: 84.8% (SWE Bench benchmark)
+- **Response Time**: <100ms for critical decisions
+- **Agent Coordination**: 4-40 agents with auto-scaling
+- **Learning Rate**: Continuous improvement from feedback
+
+### **🚀 Implementation Status**
+
+| Component | Status | Port | Description |
+|-----------|--------|------|-------------|
+| **SwarmCoordinator** | ✅ Complete | 8090/8091 | Central orchestrator |
+| **Agent-Strateg** | ✅ Complete | 8100 | CEO agent |
+| **Agent-Analityk** | 🔄 In Progress | 8101 | Qualitative analysis |
+| **Agent-Quant** | 📋 Planned | 8102 | Quantitative modeling |
+| **Agent-Nadzorca** | 📋 Planned | 8103 | Security oversight |
+
+---
+
+**Motto:** *"From Evolution to Revolution - The Hive Mind Awakens"* 🐝🔥

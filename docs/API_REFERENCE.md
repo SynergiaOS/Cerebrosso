@@ -1,8 +1,17 @@
-# 📡 API Reference - Cerberus Phoenix v2.0
+# 📡 API Reference - Cerberus Phoenix v3.0 Hive Mind
 
 ## Base URLs
+
+### 🐝 **Hive Mind Services (NEW v3.0)**
+- **SwarmCoordinator**: `http://localhost:8090` (HTTP), `ws://localhost:8091` (WebSocket)
+- **Agent-Strateg**: `http://localhost:8100` (CEO Agent)
+- **Agent-Analityk**: `http://localhost:8101` (Coming Soon)
+- **Agent-Quant**: `http://localhost:8102` (Coming Soon)
+- **Agent-Nadzorca**: `http://localhost:8103` (Coming Soon)
+
+### ⚡ **Core Services**
 - **Cerebro-BFF**: `http://localhost:3000`
-- **HFT-Ninja**: `http://localhost:8090`
+- **HFT-Ninja**: `http://localhost:8080`
 
 ## Authentication
 Most endpoints require API key authentication:
@@ -252,4 +261,151 @@ Rate limit headers:
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
 X-RateLimit-Reset: 1642248600
+```
+
+---
+
+## 🐝 **Hive Mind API (NEW v3.0)**
+
+### **SwarmCoordinator API** (`http://localhost:8090`)
+
+#### Health Check
+```http
+GET /health
+```
+
+#### Get Swarm Status
+```http
+GET /status
+```
+
+**Response:**
+```json
+{
+  "swarm_state": "Active",
+  "total_agents": 4,
+  "active_agents": 3,
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Get Swarm Metrics
+```http
+GET /metrics
+```
+
+#### List Agents
+```http
+GET /agents
+```
+
+#### Register Agent
+```http
+POST /agents/register
+```
+
+#### Delegate Task
+```http
+POST /tasks
+```
+
+---
+
+### **Agent-Strateg API** (`http://localhost:8100`)
+
+#### Health Check
+```http
+GET /health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "agent-strateg",
+  "role": "CEO",
+  "decision_weight": 0.4,
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Get Agent Status
+```http
+GET /status
+```
+
+#### Get Agent Metrics
+```http
+GET /metrics
+```
+
+#### List Active Goals
+```http
+GET /goals
+```
+
+#### Create Goal
+```http
+POST /goals
+```
+
+**Request Body:**
+```json
+{
+  "title": "Analyze Token XYZ",
+  "description": "Comprehensive analysis of new token XYZ",
+  "priority": "High",
+  "context": {
+    "token_address": "So11111111111111111111111111111111111111112",
+    "market_cap": 1000000,
+    "volume_24h": 50000
+  }
+}
+```
+
+#### Decompose Goal
+```http
+POST /goals/{id}/decompose
+```
+
+#### Synthesize Decision
+```http
+POST /decisions
+```
+
+**Request Body:**
+```json
+{
+  "agent_responses": [
+    {
+      "agent_type": "Analityk",
+      "confidence": 0.85,
+      "recommendation": "BUY",
+      "reasoning": "Strong community sentiment"
+    },
+    {
+      "agent_type": "Quant",
+      "confidence": 0.78,
+      "recommendation": "BUY",
+      "reasoning": "Favorable technical indicators"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "decision": {
+    "decision_type": "Buy",
+    "confidence": 0.82,
+    "position_size": 0.05,
+    "rationale": "Consensus from multiple agents with high confidence"
+  },
+  "risk_assessment": {
+    "risk_level": "Medium",
+    "stop_loss": 0.95,
+    "take_profit": 1.15
+  }
+}
 ```
