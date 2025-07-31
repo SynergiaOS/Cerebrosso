@@ -1,0 +1,127 @@
+# 🛡️ Projekt Cerberus Phoenix v3.0 - Chainguardia (Advanced Security Monitoring)
+# Enterprise-grade security monitoring and threat detection for blockchain operations
+
+[package]
+name = "chainguardia"
+version = "3.0.0"
+edition = "2021"
+authors = ["SynergiaOS <202778732+SynergiaOS@users.noreply.github.com>"]
+description = "🛡️ Advanced security monitoring and threat detection for Solana blockchain"
+license = "MIT"
+repository = "https://github.com/SynergiaOS/Cerebros"
+keywords = ["security", "monitoring", "blockchain", "threat-detection", "solana"]
+categories = ["web-programming", "cryptography", "network-programming"]
+
+[dependencies]
+# 🚀 Async Runtime & Web Framework
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["json", "tower-log", "ws"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# 🌐 HTTP Client & Serialization
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# 🔴 Redis for Alert Storage
+redis = { version = "0.24", features = ["tokio-comp", "streams"] }
+
+# 🟣 Solana SDK
+solana-client = "1.17"
+solana-sdk = "1.17"
+solana-rpc-client = "1.17"
+solana-account-decoder = "1.17"
+
+# 🔐 Security & Cryptography
+sha2 = "0.10"
+sha3 = "0.10"
+blake3 = "1.5"
+ed25519-dalek = "2.0"
+x25519-dalek = "2.0"
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+ring = "0.17"
+rustls = "0.21"
+webpki-roots = "0.25"
+
+# 🕵️ Anomaly Detection & ML
+linfa = { version = "0.7", features = ["serde"] }
+linfa-clustering = "0.7"
+linfa-reduction = "0.7"
+ndarray = "0.15"
+statrs = "0.16"
+
+# 📊 Data Processing & Analytics
+chrono = { version = "0.4", features = ["serde"] }
+polars = { version = "0.35", features = ["lazy", "temporal", "strings"] }
+
+# 🔧 Configuration & Environment
+config = "0.14"
+dotenvy = "0.15"
+
+# 📊 Metrics & Monitoring
+prometheus = { version = "0.14" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# ⚡ Performance & Utilities
+rayon = "1.8"
+dashmap = "5.5"
+once_cell = "1.19"
+anyhow = "1.0"
+thiserror = "1.0"
+rust_decimal = { version = "1.33", features = ["serde"] }
+
+# 🔄 Concurrency & Synchronization
+parking_lot = "0.12"
+crossbeam = "0.8"
+async-trait = "0.1"
+
+# 🌊 WebSocket for Real-time Alerts
+tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
+futures-util = "0.3"
+
+# 📧 Notification Systems
+lettre = { version = "0.11", features = ["tokio1-rustls-tls"] }
+slack-hook = "0.8"
+
+# 🧪 Development & Testing
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+
+# 🎯 Binary Targets
+[[bin]]
+name = "chainguardia"
+path = "src/main.rs"
+
+# 🔧 Build Configuration
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+
+# 📦 Features
+[features]
+default = ["anomaly-detection", "threat-intelligence", "notifications"]
+anomaly-detection = ["linfa", "linfa-clustering", "linfa-reduction"]
+threat-intelligence = ["polars"]
+notifications = ["lettre", "slack-hook"]
+hardware-security = ["ring"]
+
+# 📋 Metadata
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -141,6 +141,134 @@ services:
       retries: 3
       start_period: 40s
 
+  # 🧠 Context Engine (CEM) - Advanced Context Management
+  context-engine:
+    build:
+      context: ./services/context-engine
+      dockerfile: Dockerfile
+    ports:
+      - "8200:8200"  # HTTP API
+      - "9200:9200"  # Prometheus metrics
+    environment:
+      - CONTEXT_ENGINE_HOST=0.0.0.0
+      - CONTEXT_ENGINE_PORT=8200
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=context_memory
+      - EMBEDDING_VECTOR_SIZE=1536
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-demo_key}
+      - ENABLE_TF_IDF=true
+      - ENABLE_CLUSTERING=true
+      - ENABLE_DEDUPLICATION=true
+      - ENABLE_LEARNING=true
+      - CONTEXT_QUALITY_THRESHOLD=0.7
+      - RELEVANCE_THRESHOLD=0.5
+      - LEARNING_RATE=0.01
+      - SHUFFLE_HAYSTACK=true
+      - CONTEXT_METRICS_ENABLED=true
+      - CONTEXT_PROMETHEUS_PORT=9200
+      - TRACING_LEVEL=info
+    depends_on:
+      - redis
+      - qdrant
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 🔗 Synk - Network State Synchronization
+  synk:
+    build:
+      context: ./services/synk
+      dockerfile: Dockerfile
+    ports:
+      - "8300:8300"  # HTTP API
+      - "9300:9300"  # Prometheus metrics
+    environment:
+      - SYNK_HOST=0.0.0.0
+      - SYNK_PORT=8300
+      - REDIS_URL=redis://redis:6379
+      - SOLANA_CLUSTER=devnet
+      - SOLANA_RPC_URL=https://api.devnet.solana.com
+      - SOLANA_WS_URL=wss://api.devnet.solana.com
+      - SYNC_INTERVAL_MS=1000
+      - ENABLE_REAL_TIME=true
+      - PROMETHEUS_PORT=9300
+      - TRACING_LEVEL=info
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8300/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 🛡️ Chainguardia - Advanced Security Monitoring
+  chainguardia:
+    build:
+      context: ./services/chainguardia
+      dockerfile: Dockerfile
+    ports:
+      - "8400:8400"  # HTTP API
+      - "9400:9400"  # Prometheus metrics
+    environment:
+      - GUARDIA_HOST=0.0.0.0
+      - GUARDIA_PORT=8400
+      - REDIS_URL=redis://redis:6379
+      - THREAT_DETECTION_ENABLED=true
+      - ANOMALY_DETECTION_ENABLED=true
+      - WALLET_MONITORING_ENABLED=true
+      - COMPLIANCE_CHECKING_ENABLED=true
+      - THREAT_THRESHOLD=0.7
+      - ANOMALY_THRESHOLD=0.95
+      - PROMETHEUS_PORT=9400
+      - TRACING_LEVEL=info
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8400/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ⚡ Performance Optimizer - Ultra-Low Latency & High Accuracy
+  performance-optimizer:
+    build:
+      context: ./services/performance-optimizer
+      dockerfile: Dockerfile
+    ports:
+      - "8500:8500"  # HTTP API
+      - "9500:9500"  # Prometheus metrics
+    environment:
+      - OPTIMIZER_HOST=0.0.0.0
+      - OPTIMIZER_PORT=8500
+      - REDIS_URL=redis://redis:6379
+      - TARGET_LATENCY_MS=100
+      - TARGET_ACCURACY=0.848
+      - TARGET_THROUGHPUT=1000
+      - ENABLE_CACHING=true
+      - ENABLE_LOAD_BALANCING=true
+      - ENABLE_ML_OPTIMIZATION=true
+      - MAX_CACHE_SIZE_MB=1024
+      - PROMETHEUS_PORT=9500
+      - TRACING_LEVEL=info
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   postgres_data:
   redis_data:
