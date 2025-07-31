@@ -38,19 +38,64 @@ Cerberus Phoenix v2.0 is a sophisticated, AI-driven HFT system designed for ultr
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
+## 🐝 Hive Mind Architecture v3.0
+
+Cerberus Phoenix v3.0 introduces revolutionary **Swarmagentic Intelligence** - a distributed AI system where specialized agents collaborate to make optimal trading decisions.
+
+### 🎯 **Agent Hierarchy**
+```
+👑 Agent-Strateg (CEO) - 40% decision weight
+├── 🔬 Agent-Analityk - 25% weight (qualitative analysis)
+├── 🧮 Agent-Quant - 30% weight (quantitative modeling)
+└── 🛡️ Agent-Nadzorca - 5% weight + veto power (security)
+```
+
+### 🧠 **SwarmCoordinator**
+- **Central Orchestrator** managing all AI agents
+- **Task Delegation** with intelligent routing
+- **Real-time Communication** via Redis + WebSocket
+- **Memory Management** (Working/Short/Long-term)
+- **Feedback Loop** for continuous learning
+
+### 🎯 **Agent Specializations**
+- **Goal Decomposition** - Breaking complex objectives into tasks
+- **Decision Synthesis** - Weighted voting with confidence thresholds
+- **Risk Assessment** - Multi-level risk evaluation
+- **Pattern Recognition** - Learning from historical data
+
 ## 🛠️ Services
+
+### **🐝 SwarmCoordinator** (Rust) - *NEW v3.0*
+- Central orchestrator for Hive Mind architecture
+- Agent registry and lifecycle management
+- Task delegation with intelligent routing
+- Real-time communication hub (Redis + WebSocket)
+- Multi-level memory system (Working/Short/Long-term)
+- Feedback loop for continuous learning
+- **Port**: 8090 (HTTP), 8091 (WebSocket)
+
+### **👑 Agent-Strateg** (Rust) - *NEW v3.0*
+- CEO agent with 40% decision weight
+- Goal decomposition and strategic planning
+- Task delegation to specialized agents
+- Decision synthesis from agent reports
+- Risk management and position sizing
+- Multi-model AI orchestration (GPT-4, Claude-3, Llama3)
+- **Port**: 8100
 
 ### **HFT-Ninja** (Rust)
 - Real-time webhook processing
 - Ultra-low latency trade execution
 - Jito bundle integration
 - Risk management
+- **Port**: 8080
 
 ### **Cerebro-BFF** (Rust)
 - AI-driven decision making
 - Context Engine v2.0
 - Multi-model AI orchestration
 - Advanced signal processing
+- **Port**: 3000
 
 ### **Infrastructure**
 - **Vault**: Secure secrets management
@@ -84,6 +129,13 @@ cp .env.example .env
 
 ### 4. Start Services
 ```bash
+# Start Hive Mind architecture (recommended)
+docker-compose up swarm-coordinator agent-strateg
+
+# Start all services
+docker-compose up -d
+
+# Or use the convenience script
 ./scripts/start-cerberus.sh
 ```
 
@@ -92,12 +144,25 @@ cp .env.example .env
 ./scripts/run_tests.sh
 ```
 
-## 📊 Monitoring
+## 📊 Monitoring & Access
 
-Access the monitoring dashboard at:
-- **Grafana**: http://localhost:3001
-- **Prometheus**: http://localhost:9090
-- **Vault UI**: http://localhost:8200
+### 🐝 **Hive Mind Services**
+- **SwarmCoordinator**: <http://localhost:8090> (API), <http://localhost:8091> (WebSocket)
+- **Agent-Strateg**: <http://localhost:8100> (CEO Agent)
+- **Agent-Analityk**: <http://localhost:8101> (Coming Soon)
+- **Agent-Quant**: <http://localhost:8102> (Coming Soon)
+- **Agent-Nadzorca**: <http://localhost:8103> (Coming Soon)
+
+### ⚡ **Core Services**
+- **HFT-Ninja**: <http://localhost:8080>
+- **Cerebro-BFF**: <http://localhost:3000>
+- **Telegram Bot**: Integrated
+
+### 📊 **Monitoring Dashboard**
+- **Grafana**: <http://localhost:3001>
+- **Prometheus**: <http://localhost:9090>
+- **Vault UI**: <http://localhost:8200>
+- **Qdrant**: <http://localhost:6333>
 
 ## 🧪 Testing
 

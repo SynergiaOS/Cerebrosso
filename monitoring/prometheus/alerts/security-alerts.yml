@@ -1,0 +1,313 @@
+# 🛡️ Cerberus Phoenix v2.0 - Security Monitoring Alerts
+# Enhanced security alerting for enterprise-grade monitoring
+
+groups:
+  - name: cerberus_security_alerts
+    rules:
+      # 🔐 Secret Access Monitoring
+      - alert: UnauthorizedSecretAccess
+        expr: increase(vault_secret_access_total{status="unauthorized"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: unauthorized_access
+        annotations:
+          summary: "Unauthorized secret access detected"
+          description: "{{ $value }} unauthorized secret access attempts detected from {{ $labels.source_ip }}"
+
+      - alert: HighVolumeSecretAccess
+        expr: rate(vault_secret_access_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: security
+          category: anomalous_behavior
+        annotations:
+          summary: "High volume secret access detected"
+          description: "Secret access rate is {{ $value }} requests/sec - potential automated attack"
+
+      - alert: SecretAccessFromNewLocation
+        expr: increase(vault_secret_access_total{location="new"}[1h]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          component: security
+          category: location_anomaly
+        annotations:
+          summary: "Secret access from new location"
+          description: "Secret accessed from new location: {{ $labels.location }}"
+
+      # 🌐 Network Security Alerts
+      - alert: SuspiciousNetworkTraffic
+        expr: rate(traefik_requests_total{code=~"4[0-9][0-9]"}[5m]) > 5
+        for: 3m
+        labels:
+          severity: warning
+          component: security
+          category: network_anomaly
+        annotations:
+          summary: "High rate of 4xx errors detected"
+          description: "{{ $value }} 4xx errors/sec from {{ $labels.service }} - potential attack"
+
+      - alert: DDoSAttackDetected
+        expr: rate(traefik_requests_total[1m]) > 100
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+          category: ddos_attack
+        annotations:
+          summary: "Potential DDoS attack detected"
+          description: "Request rate is {{ $value }} requests/sec - significantly above normal"
+
+      - alert: UnauthorizedAPIAccess
+        expr: increase(traefik_requests_total{code="401"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: security
+          category: unauthorized_access
+        annotations:
+          summary: "Multiple unauthorized API access attempts"
+          description: "{{ $value }} unauthorized access attempts to {{ $labels.service }}"
+
+      # 🔍 Container Security Alerts
+      - alert: ContainerPrivilegeEscalation
+        expr: increase(container_security_violations_total{type="privilege_escalation"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: container_security
+        annotations:
+          summary: "Container privilege escalation detected"
+          description: "Privilege escalation attempt in container {{ $labels.container_name }}"
+
+      - alert: UnauthorizedFileAccess
+        expr: increase(container_security_violations_total{type="file_access"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          component: security
+          category: container_security
+        annotations:
+          summary: "Unauthorized file access in container"
+          description: "Unauthorized file access in container {{ $labels.container_name }}: {{ $labels.file_path }}"
+
+      - alert: ContainerRootAccess
+        expr: container_processes_running_as_root > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+          category: container_security
+        annotations:
+          summary: "Process running as root in container"
+          description: "{{ $value }} processes running as root in container {{ $labels.container_name }}"
+
+      # 🔐 Cryptographic Security Alerts
+      - alert: WeakCryptographicOperation
+        expr: increase(crypto_operations_total{strength="weak"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          component: security
+          category: cryptography
+        annotations:
+          summary: "Weak cryptographic operation detected"
+          description: "Weak crypto operation: {{ $labels.operation_type }} with {{ $labels.algorithm }}"
+
+      - alert: CryptographicFailure
+        expr: increase(crypto_operations_total{status="failed"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: security
+          category: cryptography
+        annotations:
+          summary: "High rate of cryptographic failures"
+          description: "{{ $value }} crypto failures in 5 minutes - potential attack or system issue"
+
+      - alert: SuspiciousKeyUsage
+        expr: rate(crypto_key_usage_total[5m]) > 50
+        for: 3m
+        labels:
+          severity: warning
+          component: security
+          category: cryptography
+        annotations:
+          summary: "Suspicious cryptographic key usage"
+          description: "High key usage rate: {{ $value }} operations/sec for key {{ $labels.key_id }}"
+
+      # 🚨 Vulnerability Alerts
+      - alert: NewCriticalVulnerability
+        expr: increase(vulnerability_scan_results_total{severity="critical"}[1h]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: vulnerability
+        annotations:
+          summary: "New critical vulnerability detected"
+          description: "Critical vulnerability {{ $labels.cve_id }} found in {{ $labels.component }}"
+
+      - alert: VulnerabilityPatchOverdue
+        expr: vulnerability_patch_age_days > 7
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+          category: vulnerability
+        annotations:
+          summary: "Vulnerability patch overdue"
+          description: "{{ $labels.cve_id }} patch is {{ $value }} days overdue in {{ $labels.component }}"
+
+      - alert: VulnerabilityScanFailed
+        expr: increase(vulnerability_scan_failures_total[1h]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          component: security
+          category: vulnerability
+        annotations:
+          summary: "Vulnerability scan failed"
+          description: "Vulnerability scan failed for {{ $labels.component }}: {{ $labels.error }}"
+
+      # 🔒 Compliance Alerts
+      - alert: ComplianceViolation
+        expr: increase(compliance_violations_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: compliance
+        annotations:
+          summary: "Compliance violation detected"
+          description: "{{ $labels.standard }} violation: {{ $labels.violation_type }} in {{ $labels.component }}"
+
+      - alert: AuditLogTampering
+        expr: increase(audit_log_integrity_failures_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: compliance
+        annotations:
+          summary: "Audit log tampering detected"
+          description: "Audit log integrity failure detected in {{ $labels.log_source }}"
+
+      - alert: DataRetentionViolation
+        expr: data_retention_age_days > data_retention_policy_days
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+          category: compliance
+        annotations:
+          summary: "Data retention policy violation"
+          description: "Data in {{ $labels.data_source }} is {{ $value }} days old, exceeding {{ $labels.policy_days }} day policy"
+
+  - name: cerberus_security_sla_alerts
+    rules:
+      # 🎯 Security SLA Monitoring
+      - alert: SecurityIncidentResponseSLA
+        expr: security_incident_response_time_minutes > 15
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: sla
+        annotations:
+          summary: "Security incident response SLA breach"
+          description: "Security incident {{ $labels.incident_id }} response time is {{ $value }} minutes (SLA: 15 minutes)"
+
+      - alert: VulnerabilityPatchingSLA
+        expr: vulnerability_patch_time_hours > 24
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+          category: sla
+        annotations:
+          summary: "Vulnerability patching SLA breach"
+          description: "Critical vulnerability {{ $labels.cve_id }} patch time is {{ $value }} hours (SLA: 24 hours)"
+
+      - alert: SecurityScanSLA
+        expr: time() - security_scan_last_run_timestamp > 86400
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+          category: sla
+        annotations:
+          summary: "Security scan SLA breach"
+          description: "Security scan for {{ $labels.component }} is overdue by {{ $value | humanizeDuration }}"
+
+      # 🔍 Threat Detection Alerts
+      - alert: APTBehaviorDetected
+        expr: increase(threat_detection_alerts_total{type="apt"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: threat_detection
+        annotations:
+          summary: "Advanced Persistent Threat behavior detected"
+          description: "APT-like behavior detected: {{ $labels.behavior_type }} from {{ $labels.source }}"
+
+      - alert: MalwareDetected
+        expr: increase(threat_detection_alerts_total{type="malware"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: threat_detection
+        annotations:
+          summary: "Malware detected"
+          description: "Malware {{ $labels.malware_type }} detected in {{ $labels.location }}"
+
+      - alert: DataExfiltrationAttempt
+        expr: increase(threat_detection_alerts_total{type="data_exfiltration"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: threat_detection
+        annotations:
+          summary: "Data exfiltration attempt detected"
+          description: "Potential data exfiltration: {{ $value }} MB transferred to {{ $labels.destination }}"
+
+      # 🛡️ Defense System Alerts
+      - alert: FirewallRuleViolation
+        expr: increase(firewall_violations_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: security
+          category: defense_system
+        annotations:
+          summary: "High rate of firewall violations"
+          description: "{{ $value }} firewall violations from {{ $labels.source_ip }}"
+
+      - alert: IntrusionDetectionAlert
+        expr: increase(ids_alerts_total{severity="high"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          category: defense_system
+        annotations:
+          summary: "High severity intrusion detection alert"
+          description: "IDS alert: {{ $labels.alert_type }} from {{ $labels.source_ip }}"
+
+      - alert: SecuritySystemDown
+        expr: up{job=~"security-.*"} < 1
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+          category: defense_system
+        annotations:
+          summary: "Security system component down"
+          description: "Security component {{ $labels.job }} is down - security posture compromised"

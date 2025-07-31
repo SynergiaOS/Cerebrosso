@@ -1,0 +1,26 @@
+[package]
+name = "cerberus-telegram-bot"
+version = "2.0.0"
+edition = "2021"
+description = "Telegram monitoring bot for Cerberus Phoenix v2.0"
+
+[dependencies]
+# 📱 Telegram
+teloxide = { version = "0.12", features = ["macros"] }
+
+# 🌐 HTTP & JSON
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 📝 Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# 🔧 Utilities
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# ⏰ Scheduling
+tokio-cron-scheduler = "0.10"

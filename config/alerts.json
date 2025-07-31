@@ -1,0 +1,90 @@
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "severity_filter": ["warning", "critical", "emergency"],
+      "rate_limit_minutes": 5,
+      "format": "markdown"
+    },
+    "discord": {
+      "enabled": false,
+      "severity_filter": ["critical", "emergency"],
+      "rate_limit_minutes": 3,
+      "format": "embed"
+    },
+    "email": {
+      "enabled": false,
+      "severity_filter": ["critical", "emergency"],
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "recipients": []
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "severity_filter": ["emergency"],
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  },
+  "rules": {
+    "trading": {
+      "loss_threshold_sol": 5.0,
+      "daily_loss_limit_sol": 10.0,
+      "consecutive_losses": 5,
+      "low_balance_threshold_sol": 0.1,
+      "high_slippage_threshold": 5.0,
+      "failed_trades_threshold": 3,
+      "api_error_threshold": 5
+    },
+    "system": {
+      "cpu_threshold_percent": 80,
+      "memory_threshold_percent": 85,
+      "disk_threshold_percent": 90,
+      "api_error_rate_percent": 10,
+      "response_time_threshold_ms": 5000,
+      "uptime_threshold_hours": 1
+    },
+    "security": {
+      "failed_auth_attempts": 5,
+      "suspicious_activity_threshold": 10,
+      "wallet_balance_change_threshold": 50.0,
+      "unauthorized_access_attempts": 3
+    },
+    "performance": {
+      "execution_time_threshold_ms": 1000,
+      "queue_size_threshold": 100,
+      "memory_leak_threshold_mb": 500,
+      "connection_pool_threshold": 80
+    }
+  },
+  "escalation": {
+    "warning_to_critical_minutes": 30,
+    "critical_to_emergency_minutes": 15,
+    "auto_resolve_minutes": 60,
+    "max_alerts_per_hour": 20
+  },
+  "maintenance": {
+    "cleanup_resolved_alerts_days": 7,
+    "max_alert_history": 1000,
+    "log_rotation_days": 30
+  },
+  "templates": {
+    "trading_loss": {
+      "title": "Trading Loss Alert",
+      "message": "P&L threshold exceeded: {current_pnl} SOL (threshold: {threshold} SOL)",
+      "severity": "warning"
+    },
+    "system_down": {
+      "title": "System Component Down",
+      "message": "Service {service_name} is not responding",
+      "severity": "critical"
+    },
+    "security_breach": {
+      "title": "Security Alert",
+      "message": "Suspicious activity detected: {details}",
+      "severity": "emergency"
+    }
+  }
+}

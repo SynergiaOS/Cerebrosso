@@ -68,9 +68,78 @@ services:
       - "8080:8080"
     environment:
       - CEREBRO_BFF_URL=http://cerebro-bff:3000
+      - SWARM_COORDINATOR_URL=http://swarm-coordinator:8090
       - HELIUS_WEBHOOK_SECRET=${HELIUS_WEBHOOK_SECRET:-demo}
     depends_on:
       - cerebro-bff
+      - swarm-coordinator
+
+  # 🐝 SwarmCoordinator - Hive Mind Central Orchestrator
+  swarm-coordinator:
+    build:
+      context: ./services/swarm-coordinator
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"  # HTTP API
+      - "8091:8091"  # WebSocket
+    environment:
+      - SWARM_HOST=0.0.0.0
+      - SWARM_PORT=8090
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=swarm_memory
+      - SWARM_MAX_AGENTS=40
+      - SWARM_MIN_AGENTS=4
+      - SWARM_DECISION_THRESHOLD=0.848
+      - JWT_SECRET=${JWT_SECRET:-swarm_secret_key}
+      - TRACING_LEVEL=info
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+      - vault
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 👑 Agent-Strateg - CEO Agent (Strategic Decision Making)
+  agent-strateg:
+    build:
+      context: ./services/agent-strateg
+      dockerfile: Dockerfile
+    ports:
+      - "8100:8100"  # HTTP API
+    environment:
+      - STRATEG_HOST=0.0.0.0
+      - STRATEG_PORT=8100
+      - SWARM_COORDINATOR_URL=http://swarm-coordinator:8090
+      - STRATEG_AGENT_ID=strateg_1
+      - REDIS_URL=redis://redis:6379
+      - STRATEG_PRIMARY_MODEL=gpt-4
+      - STRATEG_BACKUP_MODEL=claude-3
+      - STRATEG_DECISION_WEIGHT=0.4
+      - STRATEG_RISK_TOLERANCE=0.3
+      - STRATEG_MAX_GOALS=5
+      - STRATEG_MAX_POSITION_SOL=10.0
+      - STRATEG_STOP_LOSS_PCT=0.05
+      - STRATEG_TAKE_PROFIT_PCT=0.15
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-demo_key}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-demo_key}
+      - TRACING_LEVEL=info
+    depends_on:
+      - swarm-coordinator
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:
